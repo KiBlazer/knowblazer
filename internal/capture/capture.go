@@ -18,6 +18,14 @@ type Result struct {
 }
 
 func Markdown(repoRoot string, sourcePath string) (Result, error) {
+	return markdown(repoRoot, sourcePath, false)
+}
+
+func MarkdownAuto(repoRoot string, sourcePath string) (Result, error) {
+	return markdown(repoRoot, sourcePath, true)
+}
+
+func markdown(repoRoot string, sourcePath string, autoPromote bool) (Result, error) {
 	if !isMarkdown(sourcePath) {
 		return Result{}, errors.New("only Markdown files are supported in MVP")
 	}
@@ -35,9 +43,18 @@ func Markdown(repoRoot string, sourcePath string) (Result, error) {
 	now := time.Now()
 	layer := "inbox"
 	status := "candidate"
+	noteType := layer
+	targetDir := filepath.Join(repoRoot, layer, now.Format("2006-01-02"))
 	if scanResult.Level == scan.High {
 		layer = "quarantine"
 		status = "quarantined"
+		noteType = layer
+		targetDir = filepath.Join(repoRoot, layer, now.Format("2006-01-02"))
+	} else if autoPromote {
+		layer = filepath.Join("experience", "auto")
+		status = "auto_promoted"
+		noteType = "experience"
+		targetDir = filepath.Join(repoRoot, "experience", "auto")
 	}
 
 	title := titleFromMarkdown(content, sourcePath)
@@ -46,13 +63,12 @@ func Markdown(repoRoot string, sourcePath string) (Result, error) {
 		slug = "note"
 	}
 
-	targetDir := filepath.Join(repoRoot, layer, now.Format("2006-01-02"))
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return Result{}, err
 	}
 
-	targetPath := filepath.Join(targetDir, fmt.Sprintf("%s-%s.md", now.Format("20060102-150405"), slug))
-	wrapped := addFrontMatter(content, title, layer, status, sourcePath, now)
+	targetPath := filepath.Join(targetDir, fmt.Sprintf("%s-%s.md", now.Format("2006-01-02-150405"), slug))
+	wrapped := addFrontMatter(content, title, noteType, status, sourcePath, now, scanResult.Level)
 	if err := os.WriteFile(targetPath, wrapped, 0o644); err != nil {
 		return Result{}, err
 	}
@@ -76,7 +92,7 @@ func titleFromMarkdown(content []byte, sourcePath string) string {
 	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
-func addFrontMatter(content []byte, title string, noteType string, status string, sourcePath string, capturedAt time.Time) []byte {
+func addFrontMatter(content []byte, title string, noteType string, status string, sourcePath string, capturedAt time.Time, scanLevel scan.Level) []byte {
 	body := string(content)
 	if strings.HasPrefix(body, "---\n") {
 		return content
@@ -87,9 +103,10 @@ type: "%s"
 status: "%s"
 source: "%s"
 captured_at: "%s"
+scan_level: "%s"
 ---
 
-`, escapeYAML(title), noteType, status, escapeYAML(sourcePath), capturedAt.Format(time.RFC3339))
+`, escapeYAML(title), noteType, status, escapeYAML(sourcePath), capturedAt.Format(time.RFC3339), scanLevel.String())
 	return []byte(frontMatter + body)
 }
 

@@ -114,7 +114,18 @@ func ensureClaudeInstructions(workspace string, repoRoot string) (string, error)
 	if err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
-	if bytes.Contains(content, []byte("KNOWBLAZER-CLAUDE-SETUP:START")) {
+	start := []byte("<!-- KNOWBLAZER-CLAUDE-SETUP:START -->")
+	end := []byte("<!-- KNOWBLAZER-CLAUDE-SETUP:END -->")
+	if startAt := bytes.Index(content, start); startAt >= 0 {
+		if endAt := bytes.Index(content[startAt:], end); endAt >= 0 {
+			endAt += startAt + len(end)
+			next := append([]byte{}, content[:startAt]...)
+			next = append(next, []byte(block)...)
+			if endAt < len(content) {
+				next = append(next, content[endAt:]...)
+			}
+			return path, os.WriteFile(path, next, 0o644)
+		}
 		return path, nil
 	}
 	var next []byte
@@ -134,7 +145,8 @@ func claudeInstructionBlock(repoRoot string) string {
 		"## Knowblazer Memory\n\n"+
 		"Use Knowblazer as the local engineering memory source for this project.\n\n"+
 		"- At the start of non-trivial coding tasks, call the Knowblazer MCP `knowblazer_context` tool with the task.\n"+
-		"- When the user says to remember a durable lesson, call `knowblazer_remember` with the lesson text.\n"+
+		"- Automatically remember durable lessons, project constraints, and reusable debugging or deployment facts with `knowblazer_remember` when they emerge during work; do not wait for an explicit reminder.\n"+
+		"- Do not remember secrets, credentials, customer data, or temporary task chatter. If sensitive content is detected, Knowblazer will quarantine it.\n"+
 		"- Use `knowblazer_status` if you need to check whether project memory is connected.\n"+
 		"- If MCP is unavailable, run `knowblazer recall \"<task>\" --repo %s` and use the returned Markdown as context.\n"+
 		"- Never read from or include `quarantine/` in task context.\n"+

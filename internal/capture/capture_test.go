@@ -50,6 +50,58 @@ func TestMarkdownCleanFileGoesToInbox(t *testing.T) {
 	}
 }
 
+func TestMarkdownAutoCleanFileGoesToExperienceAuto(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(t.TempDir(), "memory.md")
+	if err := os.WriteFile(source, []byte("# Memory\n\nDeploys need smoke tests.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := MarkdownAuto(root, source)
+	if err != nil {
+		t.Fatalf("MarkdownAuto() error = %v", err)
+	}
+
+	if !strings.Contains(result.Path, filepath.Join("experience", "auto")) {
+		t.Fatalf("Path = %s, want experience/auto path", result.Path)
+	}
+	captured, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("read captured: %v", err)
+	}
+	for _, want := range []string{`type: "experience"`, `status: "auto_promoted"`, `scan_level: "clean"`} {
+		if !strings.Contains(string(captured), want) {
+			t.Fatalf("captured file missing %q:\n%s", want, captured)
+		}
+	}
+}
+
+func TestMarkdownAutoHighRiskFileGoesToQuarantine(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(t.TempDir(), "secret.md")
+	if err := os.WriteFile(source, []byte("# Secret\n\npassword=super-secret-password\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := MarkdownAuto(root, source)
+	if err != nil {
+		t.Fatalf("MarkdownAuto() error = %v", err)
+	}
+
+	if !strings.Contains(result.Path, filepath.Join("quarantine")) {
+		t.Fatalf("Path = %s, want quarantine path", result.Path)
+	}
+	if result.ScanLevel.String() != "high" {
+		t.Fatalf("ScanLevel = %s, want high", result.ScanLevel.String())
+	}
+}
+
 func TestMarkdownHighRiskFileGoesToQuarantine(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	if err := repo.Init(root); err != nil {

@@ -19,15 +19,17 @@ import (
 )
 
 type Request struct {
-	ID     any            `json:"id,omitempty"`
-	Method string         `json:"method"`
-	Params map[string]any `json:"params,omitempty"`
+	JSONRPC string         `json:"jsonrpc,omitempty"`
+	ID      any            `json:"id,omitempty"`
+	Method  string         `json:"method"`
+	Params  map[string]any `json:"params,omitempty"`
 }
 
 type Response struct {
-	ID     any    `json:"id,omitempty"`
-	Result any    `json:"result,omitempty"`
-	Error  string `json:"error,omitempty"`
+	JSONRPC string `json:"jsonrpc,omitempty"`
+	ID      any    `json:"id,omitempty"`
+	Result  any    `json:"result,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 func Serve(repoRoot string, in io.Reader, out io.Writer) error {
@@ -36,10 +38,13 @@ func Serve(repoRoot string, in io.Reader, out io.Writer) error {
 	for scanner.Scan() {
 		var req Request
 		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
-			_ = encoder.Encode(Response{Error: err.Error()})
+			_ = encoder.Encode(Response{JSONRPC: "2.0", Error: err.Error()})
 			continue
 		}
 		resp := handle(repoRoot, req)
+		if resp == nil {
+			continue
+		}
 		if err := encoder.Encode(resp); err != nil {
 			return err
 		}
@@ -47,15 +52,88 @@ func Serve(repoRoot string, in io.Reader, out io.Writer) error {
 	return scanner.Err()
 }
 
-func handle(repoRoot string, req Request) Response {
+func handle(repoRoot string, req Request) *Response {
 	switch req.Method {
+	case "initialize":
+		return ok(req.ID, map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities": map[string]any{
+				"tools": map[string]any{},
+			},
+			"serverInfo": map[string]any{
+				"name":    "knowblazer",
+				"version": "0.1.0",
+			},
+		})
+	case "notifications/initialized":
+		return nil
+	case "ping":
+		return ok(req.ID, map[string]any{})
 	case "tools/list":
-		return Response{ID: req.ID, Result: []string{"knowblazer_context", "knowblazer_remember", "knowblazer_status", "knowblazer_recall", "knowblazer_search", "knowblazer_capture"}}
+		return ok(req.ID, map[string]any{"tools": toolDefinitions()})
+	case "tools/call":
+		return callTool(repoRoot, req)
 	case "knowblazer_context":
-		task := stringParam(req.Params, "task")
-		project := stringParam(req.Params, "project")
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	case "knowblazer_remember":
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	case "knowblazer_status":
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	case "knowblazer_recall":
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	case "knowblazer_search":
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	case "knowblazer_capture":
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	default:
+		return fail(req.ID, fmt.Sprintf("unknown method: %s", req.Method))
+	}
+}
+
+func ok(id any, result any) *Response {
+	return &Response{JSONRPC: "2.0", ID: id, Result: result}
+}
+
+func fail(id any, message string) *Response {
+	return &Response{JSONRPC: "2.0", ID: id, Error: message}
+}
+
+func callTool(repoRoot string, req Request) *Response {
+	name := stringParam(req.Params, "name")
+	args := mapParam(req.Params, "arguments")
+	if name == "" {
+		return fail(req.ID, "tool name is required")
+	}
+	result := directToolResult(repoRoot, req.ID, name, args)
+	if result == nil || result.Error != "" {
+		return result
+	}
+	text, ok := result.Result.(string)
+	if !ok {
+		data, err := json.MarshalIndent(result.Result, "", "  ")
+		if err != nil {
+			return fail(req.ID, err.Error())
+		}
+		text = string(data)
+	}
+	return okResponse(req.ID, text)
+}
+
+func okResponse(id any, text string) *Response {
+	return ok(id, map[string]any{
+		"content": []map[string]string{
+			{"type": "text", "text": text},
+		},
+	})
+}
+
+func directToolResult(repoRoot string, id any, name string, params map[string]any) *Response {
+	switch name {
+	case "knowblazer_context":
+		task := stringParam(params, "task")
+		project := stringParam(params, "project")
 		if project == "" {
-			workspace := stringParam(req.Params, "workspace")
+			workspace := stringParam(params, "workspace")
 			if workspace == "" {
 				workspace, _ = os.Getwd()
 			}
@@ -67,57 +145,103 @@ func handle(repoRoot string, req Request) Response {
 		}
 		pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
 		if err != nil {
-			return Response{ID: req.ID, Error: err.Error()}
+			return fail(id, err.Error())
 		}
-		return Response{ID: req.ID, Result: string(pack)}
+		return ok(id, string(pack))
 	case "knowblazer_remember":
-		text := strings.TrimSpace(stringParam(req.Params, "text"))
+		text := strings.TrimSpace(stringParam(params, "text"))
 		if text == "" {
-			return Response{ID: req.ID, Error: "text is required"}
+			return fail(id, "text is required")
 		}
-		if boolParam(req.Params, "daily") {
+		if boolParam(params, "daily") {
 			path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
 			if err != nil {
-				return Response{ID: req.ID, Error: err.Error()}
+				return fail(id, err.Error())
 			}
-			return Response{ID: req.ID, Result: map[string]any{"path": path, "status": "daily"}}
+			return ok(id, map[string]any{"path": path, "status": "daily"})
 		}
 		result, err := rememberText(repoRoot, text)
 		if err != nil {
-			return Response{ID: req.ID, Error: err.Error()}
+			return fail(id, err.Error())
 		}
-		return Response{ID: req.ID, Result: result}
+		return ok(id, result)
 	case "knowblazer_status":
-		status, err := status(repoRoot, stringParam(req.Params, "workspace"))
+		status, err := status(repoRoot, stringParam(params, "workspace"))
 		if err != nil {
-			return Response{ID: req.ID, Error: err.Error()}
+			return fail(id, err.Error())
 		}
-		return Response{ID: req.ID, Result: status}
+		return ok(id, status)
 	case "knowblazer_recall":
-		task := stringParam(req.Params, "task")
-		project := stringParam(req.Params, "project")
+		task := stringParam(params, "task")
+		project := stringParam(params, "project")
 		pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
 		if err != nil {
-			return Response{ID: req.ID, Error: err.Error()}
+			return fail(id, err.Error())
 		}
-		return Response{ID: req.ID, Result: string(pack)}
+		return ok(id, string(pack))
 	case "knowblazer_search":
-		query := stringParam(req.Params, "query")
+		query := stringParam(params, "query")
 		hits, err := index.Search(repoRoot, query)
 		if err != nil {
-			return Response{ID: req.ID, Error: err.Error()}
+			return fail(id, err.Error())
 		}
-		return Response{ID: req.ID, Result: hits}
+		return ok(id, hits)
 	case "knowblazer_capture":
-		source := stringParam(req.Params, "file")
+		source := stringParam(params, "file")
 		result, err := capture.Markdown(repoRoot, source)
 		if err != nil {
-			return Response{ID: req.ID, Error: err.Error()}
+			return fail(id, err.Error())
 		}
-		return Response{ID: req.ID, Result: result}
+		return ok(id, result)
 	default:
-		return Response{ID: req.ID, Error: fmt.Sprintf("unknown method: %s", req.Method)}
+		return fail(id, fmt.Sprintf("unknown tool: %s", name))
 	}
+}
+
+func toolDefinitions() []map[string]any {
+	return []map[string]any{
+		toolDefinition("knowblazer_context", "Generate task context from Knowblazer memory.", map[string]any{
+			"task":      stringSchema("Task description to generate context for."),
+			"project":   stringSchema("Optional project memory name."),
+			"workspace": stringSchema("Optional workspace path used to resolve project mapping."),
+		}, []string{"task"}),
+		toolDefinition("knowblazer_remember", "Save a durable lesson to long-term auto memory or daily notes.", map[string]any{
+			"text":  stringSchema("Lesson text to remember."),
+			"daily": map[string]any{"type": "boolean", "description": "Save as a daily note instead of long-term auto memory."},
+		}, []string{"text"}),
+		toolDefinition("knowblazer_status", "Check Knowblazer memory connection status.", map[string]any{
+			"workspace": stringSchema("Optional workspace path."),
+		}, nil),
+		toolDefinition("knowblazer_recall", "Generate a recall pack for a task.", map[string]any{
+			"task":    stringSchema("Task description."),
+			"project": stringSchema("Optional project memory name."),
+		}, []string{"task"}),
+		toolDefinition("knowblazer_search", "Search the Knowblazer local index.", map[string]any{
+			"query": stringSchema("Search query."),
+		}, []string{"query"}),
+		toolDefinition("knowblazer_capture", "Capture a Markdown file into Knowblazer.", map[string]any{
+			"file": stringSchema("Markdown file path to capture."),
+		}, []string{"file"}),
+	}
+}
+
+func toolDefinition(name string, description string, properties map[string]any, required []string) map[string]any {
+	schema := map[string]any{
+		"type":       "object",
+		"properties": properties,
+	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return map[string]any{
+		"name":        name,
+		"description": description,
+		"inputSchema": schema,
+	}
+}
+
+func stringSchema(description string) map[string]any {
+	return map[string]any{"type": "string", "description": description}
 }
 
 func rememberText(repoRoot string, text string) (map[string]any, error) {
@@ -134,14 +258,14 @@ func rememberText(repoRoot string, text string) (map[string]any, error) {
 	if err := file.Close(); err != nil {
 		return nil, err
 	}
-	result, err := capture.Markdown(repoRoot, name)
+	result, err := capture.MarkdownAuto(repoRoot, name)
 	if err != nil {
 		return nil, err
 	}
 	if result.ScanLevel == scan.High {
 		return nil, fmt.Errorf("sensitive content detected; saved to quarantine: %s", result.Path)
 	}
-	return map[string]any{"path": result.Path, "status": "candidate", "scan_level": result.ScanLevel.String()}, nil
+	return map[string]any{"path": result.Path, "status": "auto_promoted", "scan_level": result.ScanLevel.String()}, nil
 }
 
 func status(repoRoot string, workspace string) (map[string]any, error) {
@@ -185,5 +309,13 @@ func stringParam(params map[string]any, name string) string {
 		return ""
 	}
 	value, _ := params[name].(string)
+	return value
+}
+
+func mapParam(params map[string]any, name string) map[string]any {
+	if params == nil {
+		return nil
+	}
+	value, _ := params[name].(map[string]any)
 	return value
 }

@@ -52,7 +52,7 @@ func TestRunStartAndStatusUseClaudeFirstDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read CLAUDE.md: %v", err)
 	}
-	if !strings.Contains(string(content), "knowblazer_context") {
+	if !strings.Contains(string(content), "knowblazer_context") || !strings.Contains(string(content), "Automatically remember durable lessons") {
 		t.Fatalf("CLAUDE.md missing context tool instructions:\n%s", content)
 	}
 	if !strings.Contains(stdout.String(), "Next: run `claude`") {
@@ -394,8 +394,11 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	if code := Run([]string{"remember", "Deploys", "need", "smoke", "tests", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("remember code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Remembered to inbox:") {
-		t.Fatalf("remember output missing inbox path: %s", stdout.String())
+	if !strings.Contains(stdout.String(), "Remembered to long-term memory:") {
+		t.Fatalf("remember output missing long-term memory path: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), filepath.Join("experience", "auto")) {
+		t.Fatalf("remember output missing experience auto path: %s", stdout.String())
 	}
 
 	stdout.Reset()
@@ -481,7 +484,7 @@ func TestRunSetupClaudeUpdatesProject(t *testing.T) {
 		t.Fatalf("read CLAUDE.md: %v", err)
 	}
 	text := string(content)
-	if !strings.Contains(text, "KNOWBLAZER-CLAUDE-SETUP:START") || !strings.Contains(text, root) {
+	if !strings.Contains(text, "KNOWBLAZER-CLAUDE-SETUP:START") || !strings.Contains(text, root) || !strings.Contains(text, "Automatically remember durable lessons") {
 		t.Fatalf("CLAUDE.md missing Knowblazer instructions:\n%s", text)
 	}
 	if !strings.Contains(stdout.String(), "Claude Code integration ready.") {

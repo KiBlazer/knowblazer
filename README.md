@@ -39,16 +39,17 @@ Knowblazer is not:
 
 ## Installation
 
-Install the latest released CLI with Go:
-
-```bash
-go install github.com/knowblazer/knowblazer/cmd/knowblazer@latest
-```
-
-For local development from this repository:
+Knowblazer is not published to GitHub yet. For local development from this
+repository:
 
 ```bash
 make install
+```
+
+After the repository is published, the release install path will be:
+
+```bash
+go install github.com/knowblazer/knowblazer/cmd/knowblazer@latest
 ```
 
 ## Quick Start
@@ -71,7 +72,7 @@ knowblazer status
 knowblazer sync
 ```
 
-Use `remember` for lessons worth keeping, `status` to check the integration, and `sync` only when you choose to commit or push your private memory repo.
+Use `remember` for lessons worth keeping; clean lessons are written directly to `experience/auto/`, while high-risk content is quarantined. Use `status` to check the integration, and `sync` only when you choose to commit or push your private memory repo.
 
 ## MVP Flow
 
@@ -82,13 +83,11 @@ start from a project directory
   ↓
 connect Claude Code to private memory
   ↓
-remember useful lessons
+remember useful lessons automatically
   ↓
 scan for secrets
   ↓
-store in inbox or quarantine
-  ↓
-promote reviewed memory
+store clean memory in experience/auto or risky content in quarantine
   ↓
 recall task context while coding
 ```
@@ -157,9 +156,9 @@ knowblazer-notes/
 
 Core rules:
 
-- `inbox/` is for unreviewed candidate memory.
+- `inbox/` is for unreviewed candidate memory from explicit capture/import flows.
 - `daily/` is for short-term working notes.
-- `profile/`, `projects/`, and `experience/` are reviewed long-term memory.
+- `profile/`, `projects/`, and `experience/` are long-term memory. Automatic remembered lessons go under `experience/auto/`.
 - `quarantine/` is for sensitive or risky content and is never included in default recall.
 - `recall/` is for generated task context packs.
 

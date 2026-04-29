@@ -35,20 +35,22 @@ func TestServeClaudeFriendlyTools(t *testing.T) {
 	}
 
 	input := strings.NewReader(
-		`{"id":1,"method":"tools/list"}` + "\n" +
-			`{"id":2,"method":"knowblazer_context","params":{"task":"deploy","workspace":"` + filepath.ToSlash(workspace) + `"}}` + "\n" +
-			`{"id":3,"method":"knowblazer_remember","params":{"text":"Remember smoke tests"}}` + "\n" +
-			`{"id":4,"method":"knowblazer_status","params":{"workspace":"` + filepath.ToSlash(workspace) + `"}}` + "\n",
+		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n" +
+			`{"jsonrpc":"2.0","method":"notifications/initialized"}` + "\n" +
+			`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n" +
+			`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"knowblazer_context","arguments":{"task":"deploy","workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n" +
+			`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"knowblazer_remember","arguments":{"text":"Remember smoke tests"}}}` + "\n" +
+			`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"knowblazer_status","arguments":{"workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n",
 	)
 	var output bytes.Buffer
 	if err := Serve(root, input, &output); err != nil {
 		t.Fatalf("Serve() error = %v", err)
 	}
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	if len(lines) != 4 {
+	if len(lines) != 5 {
 		t.Fatalf("got %d responses: %s", len(lines), output.String())
 	}
-	if !strings.Contains(lines[0], "knowblazer_context") || !strings.Contains(lines[1], "Use smoke tests.") || !strings.Contains(lines[2], "candidate") || !strings.Contains(lines[3], "claude_configured") {
+	if !strings.Contains(lines[0], "serverInfo") || !strings.Contains(lines[1], "knowblazer_context") || !strings.Contains(lines[2], "Use smoke tests.") || !strings.Contains(lines[3], "auto_promoted") || !strings.Contains(lines[4], "claude_configured") {
 		t.Fatalf("unexpected responses:\n%s", output.String())
 	}
 }

@@ -304,15 +304,24 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 0
 	}
 	if info, err := os.Stat(text); err == nil && !info.IsDir() {
-		return runCapture(args, stdout, stderr)
+		result, err := capture.MarkdownAuto(repoRoot, text)
+		if err != nil {
+			fmt.Fprintf(stderr, "remember failed: %v\n", err)
+			return 1
+		}
+		if result.ScanLevel == scan.High {
+			fmt.Fprintf(stderr, "sensitive content detected; saved to quarantine: %s\n", result.Path)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Remembered to long-term memory: %s\n", result.Path)
+		return 0
 	}
 	path, err := rememberText(repoRoot, text)
 	if err != nil {
 		fmt.Fprintf(stderr, "remember failed: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "Remembered to inbox: %s\n", path)
-	fmt.Fprintln(stdout, "Review with: knowblazer review list")
+	fmt.Fprintf(stdout, "Remembered to long-term memory: %s\n", path)
 	return 0
 }
 
@@ -333,7 +342,7 @@ func rememberText(repoRoot string, text string) (string, error) {
 	if err := file.Close(); err != nil {
 		return "", err
 	}
-	result, err := capture.Markdown(repoRoot, name)
+	result, err := capture.MarkdownAuto(repoRoot, name)
 	if err != nil {
 		return "", err
 	}
