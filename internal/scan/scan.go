@@ -73,6 +73,18 @@ var highRules = []rule{
 		pattern: regexp.MustCompile(`(?i)\b(AWS_SECRET_ACCESS_KEY|GOOGLE_APPLICATION_CREDENTIALS|AZURE_CLIENT_SECRET)\s*=\s*[^\s]+`),
 		redact:  redactAssignment,
 	},
+	{
+		name:    "bearer-token",
+		level:   High,
+		pattern: regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}`),
+		redact:  redactBearer,
+	},
+	{
+		name:    "openai-style-key",
+		level:   High,
+		pattern: regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{12,}`),
+		redact:  redactOpenAIStyleKey,
+	},
 }
 
 func Path(path string) (Result, error) {
@@ -93,6 +105,9 @@ func scanDir(root string) (Result, error) {
 			return err
 		}
 		if entry.IsDir() {
+			if shouldSkipDir(entry.Name()) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		result, err := scanFile(path)
@@ -106,6 +121,15 @@ func scanDir(root string) (Result, error) {
 		return nil
 	})
 	return combined, err
+}
+
+func shouldSkipDir(name string) bool {
+	switch name {
+	case ".git", "node_modules", ".idea", ".vscode":
+		return true
+	default:
+		return false
+	}
 }
 
 func scanFile(path string) (Result, error) {
@@ -169,4 +193,14 @@ func redactDatabaseURL(line string) string {
 		}
 		return fmt.Sprintf("%s://****", parts[0])
 	})
+}
+
+func redactBearer(line string) string {
+	re := regexp.MustCompile(`(?i)(\bBearer\s+)[A-Za-z0-9._~+/=-]{12,}`)
+	return re.ReplaceAllString(line, "${1}****")
+}
+
+func redactOpenAIStyleKey(line string) string {
+	re := regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{12,}`)
+	return re.ReplaceAllString(line, "sk-****")
 }

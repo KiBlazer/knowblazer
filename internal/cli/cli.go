@@ -48,7 +48,15 @@ func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, ok := valueForFlag(args, "--repo")
 	if !ok || repoRoot == "" {
-		fmt.Fprintln(stderr, "recall requires --repo <path> in MVP")
+		var err error
+		repoRoot, err = discoverRepo()
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+	}
+	if err := repo.MustBeRepo(repoRoot); err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
 		return 2
 	}
 	project, _ := valueForFlag(args, "--project")
@@ -85,7 +93,15 @@ func runPromote(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, ok := valueForFlag(args[1:], "--repo")
 	if !ok || repoRoot == "" {
-		fmt.Fprintln(stderr, "promote requires --repo <path> in MVP")
+		var err error
+		repoRoot, err = discoverRepo()
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+	}
+	if err := repo.MustBeRepo(repoRoot); err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
 		return 2
 	}
 
@@ -107,7 +123,15 @@ func runCapture(args []string, stdout io.Writer, stderr io.Writer) int {
 	source := args[0]
 	repoRoot, ok := valueForFlag(args[1:], "--repo")
 	if !ok || repoRoot == "" {
-		fmt.Fprintln(stderr, "capture requires --repo <path> in MVP")
+		var err error
+		repoRoot, err = discoverRepo()
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+	}
+	if err := repo.MustBeRepo(repoRoot); err != nil {
+		fmt.Fprintf(stderr, "%v\n", err)
 		return 2
 	}
 
@@ -212,4 +236,11 @@ func valueForFlag(args []string, name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func discoverRepo() (string, error) {
+	return repo.Discover(repo.Options{
+		EnvRepo:     os.Getenv("KNOWBLAZER_REPO"),
+		DefaultRepo: filepath.Join(os.Getenv("HOME"), "knowblazer-notes"),
+	})
 }

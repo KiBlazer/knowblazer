@@ -78,3 +78,62 @@ func TestPromoteRejectsPathEscape(t *testing.T) {
 		t.Fatal("File() error = nil, want path escape error")
 	}
 }
+
+func TestPromoteUpdatesExistingStatusFieldOnce(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(root, "inbox", "note.md")
+	content := `---
+title: "Note"
+status: "candidate"
+---
+
+# Note
+
+No secrets.
+`
+	if err := os.WriteFile(source, []byte(content), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := File(root, source, "profile")
+	if err != nil {
+		t.Fatalf("File() error = %v", err)
+	}
+	got, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("read promoted: %v", err)
+	}
+	text := string(got)
+	if strings.Count(text, "status:") != 1 {
+		t.Fatalf("status field count = %d, want 1:\n%s", strings.Count(text, "status:"), text)
+	}
+	if !strings.Contains(text, `status: "promoted"`) {
+		t.Fatalf("status was not promoted:\n%s", text)
+	}
+}
+
+func TestPromoteWithoutFrontMatterAddsPromotedHeader(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(root, "inbox", "note.md")
+	if err := os.WriteFile(source, []byte("# Note\n\nNo secrets.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := File(root, source, "projects")
+	if err != nil {
+		t.Fatalf("File() error = %v", err)
+	}
+	got, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("read promoted: %v", err)
+	}
+	if !strings.HasPrefix(string(got), "---\nstatus: \"promoted\"") {
+		t.Fatalf("missing promoted header:\n%s", got)
+	}
+}

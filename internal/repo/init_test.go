@@ -3,6 +3,7 @@ package repo
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,22 @@ func TestInitCreatesDefaultMemoryRepo(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("expected %s to exist: %v", rel, err)
 		}
+	}
+}
+
+func TestInitUsesDefaultTemplateContent(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+
+	if err := Init(root); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(root, "AI-SETUP.md"))
+	if err != nil {
+		t.Fatalf("read AI-SETUP.md: %v", err)
+	}
+	if !strings.Contains(string(content), "Use it as durable context for AI coding work.") {
+		t.Fatalf("AI-SETUP.md does not look like template content:\n%s", content)
 	}
 }
 

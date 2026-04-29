@@ -117,7 +117,7 @@ Knowblazer should not automatically commit or push memory. Any future sync helpe
 
 ## Project Status
 
-Knowblazer is currently in product/specification phase.
+Knowblazer currently has an early P0 CLI implementation for local use. The implementation covers `init`, `scan`, `capture`, `promote`, and `recall`.
 
 Current artifacts:
 

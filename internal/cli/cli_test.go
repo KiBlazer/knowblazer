@@ -92,6 +92,31 @@ func TestRunCaptureUsesRepoFlag(t *testing.T) {
 	}
 }
 
+func TestRunCaptureDiscoversRepoFromEnvironment(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	t.Setenv("KNOWBLAZER_REPO", root)
+
+	source := filepath.Join(t.TempDir(), "lesson.md")
+	if err := os.WriteFile(source, []byte("# Deploy Lesson\n\nNo secrets.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"capture", source}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("capture code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Captured to inbox:") {
+		t.Fatalf("stdout missing capture message: %s", stdout.String())
+	}
+}
+
 func TestRunPromoteUsesRepoAndTargetFlags(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer

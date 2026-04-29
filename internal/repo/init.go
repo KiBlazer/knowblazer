@@ -3,53 +3,14 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/knowblazer/knowblazer/templates"
 )
 
-const configJSON = `{
-  "version": 1,
-  "created_by": "knowblazer",
-  "memory_repo": true
-}
-`
-
-var defaultDirs = []string{
-	".knowblazer",
-	"inbox",
-	"daily",
-	"profile",
-	"projects",
-	"experience",
-	"experience/deployment",
-	"experience/frontend",
-	"experience/backend",
-	"experience/ai-tools",
-	"experience/operations",
-	"system",
-	"quarantine",
-	"recall",
-}
-
-var defaultFiles = map[string]string{
-	".knowblazer/config.json":         configJSON,
-	"AI-SETUP.md":                     "# AI Setup\n\nThis is a private Knowblazer engineering memory repo.\n",
-	"profile/preferences.md":          "# Preferences\n\nStore stable engineering preferences here.\n",
-	"profile/decision-principles.md":  "# Decision Principles\n\nStore durable engineering decision principles here.\n",
-	"system/memory-policy.md":         "# Memory Policy\n\nMarkdown and Git are the source of truth for this memory repo.\n",
-	"system/privacy-policy.md":        "# Privacy Policy\n\nDo not upload memory to any official Knowblazer service.\n",
-	"inbox/README.md":                 "# Inbox\n\nRaw candidate memory goes here.\n",
-	"daily/README.md":                 "# Daily Notes\n\nShort-term working notes go here.\n",
-	"projects/README.md":              "# Projects\n\nDurable project context goes here.\n",
-	"experience/README.md":            "# Experience\n\nReusable engineering lessons go here.\n",
-	"experience/deployment/README.md": "# Deployment Experience\n\nReusable deployment lessons go here.\n",
-	"experience/frontend/README.md":   "# Frontend Experience\n\nReusable frontend lessons go here.\n",
-	"experience/backend/README.md":    "# Backend Experience\n\nReusable backend lessons go here.\n",
-	"experience/ai-tools/README.md":   "# AI Tools Experience\n\nReusable AI coding tool lessons go here.\n",
-	"experience/operations/README.md": "# Operations Experience\n\nReusable operations lessons go here.\n",
-	"quarantine/README.md":            "# Quarantine\n\nSensitive or risky content goes here.\n",
-	"recall/README.md":                "# Recall\n\nGenerated task context packs can be written here.\n",
-}
+const templateRoot = "default-memory-repo"
 
 func Init(root string) error {
 	if root == "" {
@@ -61,19 +22,35 @@ func Init(root string) error {
 		return err
 	}
 
-	for _, dir := range defaultDirs {
-		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
-			return fmt.Errorf("create %s: %w", dir, err)
-		}
-	}
+	return writeTemplate(root)
+}
 
-	for rel, content := range defaultFiles {
-		if err := writeFileIfMissing(filepath.Join(root, rel), []byte(content)); err != nil {
+func writeTemplate(root string) error {
+	return fs.WalkDir(templates.FS, templateRoot, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == templateRoot {
+			return nil
+		}
+
+		rel, err := filepath.Rel(templateRoot, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(root, filepath.FromSlash(rel))
+		if entry.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		content, err := templates.FS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := writeFileIfMissing(target, content); err != nil {
 			return fmt.Errorf("write %s: %w", rel, err)
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func ensureCanInitialize(root string) error {

@@ -39,9 +39,7 @@ knowblazer recall --task <text> [--repo <path>] [--project <name>] [--output <fi
 1. 当前目录是否是 Knowblazer 记忆库。
 2. 当前目录的父级目录是否包含 Knowblazer 记忆库标记。
 3. 环境变量 `KNOWBLAZER_REPO`。
-4. 用户主目录下的默认路径，例如 `~/knowblazer-notes`。
-
-具体默认路径可在实现阶段确认，但 MVP 需要保留这个查找顺序。
+4. 用户主目录下的默认路径：`~/knowblazer-notes`。
 
 ## 3. 记忆库结构
 
