@@ -283,6 +283,55 @@ func TestRunPromoteUsesRepoAndTargetFlags(t *testing.T) {
 	}
 }
 
+func TestRunAdapterImportAndIndex(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"adapter", "claude", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("adapter code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "knowblazer recall") {
+		t.Fatalf("adapter output missing recall instructions: %s", stdout.String())
+	}
+
+	source := filepath.Join(t.TempDir(), "history.md")
+	if err := os.WriteFile(source, []byte("# Deploy History\n\nRun smoke tests after deploy.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"import", "specstory", source, "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("import code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "inbox") {
+		t.Fatalf("import output missing inbox path: %s", stdout.String())
+	}
+
+	experience := filepath.Join(root, "experience", "deployment", "deploy.md")
+	if err := os.WriteFile(experience, []byte("# Deploy\n\nRun smoke tests after deploy.\n"), 0o644); err != nil {
+		t.Fatalf("write experience: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"index", "build", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("index build code = %d, stderr = %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"index", "search", "deploy", "smoke", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("index search code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "experience/deployment/deploy.md") {
+		t.Fatalf("index search missing hit: %s", stdout.String())
+	}
+}
+
 func TestRunDailyAddAndShow(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer

@@ -7,9 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/knowblazer/knowblazer/internal/adapter"
 	"github.com/knowblazer/knowblazer/internal/capture"
 	"github.com/knowblazer/knowblazer/internal/daily"
 	"github.com/knowblazer/knowblazer/internal/doctor"
+	"github.com/knowblazer/knowblazer/internal/importer/specstory"
+	"github.com/knowblazer/knowblazer/internal/index"
 	"github.com/knowblazer/knowblazer/internal/projectmap"
 	"github.com/knowblazer/knowblazer/internal/promote"
 	"github.com/knowblazer/knowblazer/internal/recall"
@@ -27,6 +30,12 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	switch args[0] {
 	case "init":
 		return runInit(args[1:], stdout, stderr)
+	case "adapter":
+		return runAdapter(args[1:], stdout, stderr)
+	case "import":
+		return runImport(args[1:], stdout, stderr)
+	case "index":
+		return runIndex(args[1:], stdout, stderr)
 	case "scan":
 		return runScan(args[1:], stdout, stderr)
 	case "capture":
@@ -49,6 +58,91 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		printUsage(stderr)
+		return 2
+	}
+}
+
+func runAdapter(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	content, err := adapter.Generate(args[0], repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "adapter failed: %v\n", err)
+		return 1
+	}
+	output := flagValue(args[1:], "--output")
+	if output != "" {
+		if err := os.WriteFile(output, content, 0o644); err != nil {
+			fmt.Fprintf(stderr, "adapter write failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Adapter written to: %s\n", output)
+		return 0
+	}
+	fmt.Fprint(stdout, string(content))
+	return 0
+}
+
+func runImport(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 2 || args[0] != "specstory" {
+		fmt.Fprintln(stderr, "usage: knowblazer import specstory <path> [--repo <path>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[2:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	results, err := specstory.Import(repoRoot, args[1])
+	if err != nil {
+		fmt.Fprintf(stderr, "import failed: %v\n", err)
+		return 1
+	}
+	for _, result := range results {
+		fmt.Fprintf(stdout, "%s  %s -> %s\n", levelString(result.Level), result.Source, result.Path)
+	}
+	return 0
+}
+
+func runIndex(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer index <build|search> [query] [--repo <path>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	switch args[0] {
+	case "build":
+		idx, err := index.Build(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "index build failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Indexed %d documents\n", len(idx.Documents))
+		return 0
+	case "search":
+		query := strings.TrimSpace(strings.Join(nonFlagArgs(args[1:]), " "))
+		hits, err := index.Search(repoRoot, query)
+		if err != nil {
+			fmt.Fprintf(stderr, "index search failed: %v\n", err)
+			return 1
+		}
+		for _, hit := range hits {
+			fmt.Fprintf(stdout, "%d  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
+		}
+		return 0
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer index <build|search> [query] [--repo <path>]")
 		return 2
 	}
 }
@@ -401,6 +495,9 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "commands:")
 	fmt.Fprintln(w, "  init [path]    initialize a Knowblazer memory repo")
 	fmt.Fprintln(w, "  scan <path> [--repo <path>]    scan a file or directory for sensitive content")
+	fmt.Fprintln(w, "  adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
+	fmt.Fprintln(w, "  import specstory <path> [--repo <path>]")
+	fmt.Fprintln(w, "  index <build|search> [query] [--repo <path>]")
 	fmt.Fprintln(w, "  daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
 	fmt.Fprintln(w, "  doctor [--repo <path>]")
 	fmt.Fprintln(w, "  project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
