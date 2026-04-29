@@ -66,6 +66,23 @@ knowblazer promote inbox/2026-04-29/deploy-lesson.md --to experience/deployment 
 knowblazer recall --task "deploy new frontend" --project my-project --repo ~/knowblazer-notes
 ```
 
+Roadmap commands:
+
+```bash
+knowblazer daily add "fixed flaky deploy" --repo ~/knowblazer-notes
+knowblazer daily show --repo ~/knowblazer-notes
+knowblazer project set my-project --path ~/work/my-project --repo ~/knowblazer-notes
+knowblazer sync status --repo ~/knowblazer-notes
+knowblazer import specstory .specstory/history --repo ~/knowblazer-notes
+knowblazer adapter claude --repo ~/knowblazer-notes
+knowblazer index build --repo ~/knowblazer-notes
+knowblazer index search deploy rollback --repo ~/knowblazer-notes
+knowblazer mcp serve --repo ~/knowblazer-notes
+knowblazer review list --repo ~/knowblazer-notes
+knowblazer dream --repo ~/knowblazer-notes
+knowblazer backup create --repo ~/knowblazer-notes --output knowblazer-backup.tgz
+```
+
 Development helpers:
 
 ```bash
@@ -123,11 +140,11 @@ P0 must work without:
 - a Git remote
 - an LLM API
 
-Knowblazer should not automatically commit or push memory. Any future sync helper must scan before commit or push. High-risk content should go to `quarantine/` and require manual review.
+Knowblazer should not automatically commit or push memory. `knowblazer sync` scans before commit or push, blocks high-risk findings, and only pushes when explicitly invoked. High-risk content should go to `quarantine/` and require manual review.
 
 ## Project Status
 
-Knowblazer currently has an early P0 CLI implementation for local use. The implementation covers `init`, `doctor`, `scan`, `capture`, `promote`, and `recall`.
+Knowblazer currently has a local-first CLI implementation for local use. The implementation covers `init`, `doctor`, `scan`, `capture`, `promote`, `recall`, `daily`, `project`, `sync`, `import specstory`, `adapter`, `index`, `mcp serve`, `review`, `dream`, and `backup`.
 
 Current artifacts:
 

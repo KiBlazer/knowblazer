@@ -424,6 +424,81 @@ func TestRunSyncStatus(t *testing.T) {
 	}
 }
 
+func TestRunBackupDreamAndReview(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "daily", "2026-04-29.md"), []byte("# 2026-04-29\n\n- Fixed deploy issue.\n"), 0o644); err != nil {
+		t.Fatalf("write daily: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"dream", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("dream code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Dream suggestions written to:") {
+		t.Fatalf("dream output missing path: %s", stdout.String())
+	}
+
+	candidate := filepath.Join(root, "inbox", "note.md")
+	if err := os.WriteFile(candidate, []byte("# Note\n\nRemember smoke tests.\n"), 0o644); err != nil {
+		t.Fatalf("write candidate: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"review", "list", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("review list code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), candidate) {
+		t.Fatalf("review list missing candidate: %s", stdout.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"review", "reject", candidate, "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("review reject code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Rejected to:") {
+		t.Fatalf("review reject missing message: %s", stdout.String())
+	}
+
+	promoteSource := filepath.Join(root, "inbox", "promote.md")
+	if err := os.WriteFile(promoteSource, []byte("# Promote\n\nReviewed lesson.\n"), 0o644); err != nil {
+		t.Fatalf("write promote source: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"review", "promote", promoteSource, "--to", "experience/deployment", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("review promote code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Promoted to:") {
+		t.Fatalf("review promote missing message: %s", stdout.String())
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup.tgz")
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"backup", "create", "--repo", root, "--output", backupPath, "--passphrase", "secret"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("backup create code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Backup written to:") {
+		t.Fatalf("backup create missing message: %s", stdout.String())
+	}
+	restorePath := filepath.Join(t.TempDir(), "restore")
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"backup", "restore", "--input", backupPath, "--target", restorePath, "--passphrase", "secret"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("backup restore code = %d, stderr = %s", code, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(restorePath, ".knowblazer", "config.json")); err != nil {
+		t.Fatalf("restored config missing: %v", err)
+	}
+}
+
 func runTestGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)

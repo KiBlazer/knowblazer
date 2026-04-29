@@ -8,15 +8,19 @@ import (
 	"strings"
 
 	"github.com/knowblazer/knowblazer/internal/adapter"
+	"github.com/knowblazer/knowblazer/internal/backup"
 	"github.com/knowblazer/knowblazer/internal/capture"
 	"github.com/knowblazer/knowblazer/internal/daily"
 	"github.com/knowblazer/knowblazer/internal/doctor"
+	"github.com/knowblazer/knowblazer/internal/dream"
 	"github.com/knowblazer/knowblazer/internal/importer/specstory"
 	"github.com/knowblazer/knowblazer/internal/index"
+	"github.com/knowblazer/knowblazer/internal/mcp"
 	"github.com/knowblazer/knowblazer/internal/projectmap"
 	"github.com/knowblazer/knowblazer/internal/promote"
 	"github.com/knowblazer/knowblazer/internal/recall"
 	"github.com/knowblazer/knowblazer/internal/repo"
+	"github.com/knowblazer/knowblazer/internal/review"
 	"github.com/knowblazer/knowblazer/internal/scan"
 	ksync "github.com/knowblazer/knowblazer/internal/sync"
 )
@@ -32,10 +36,18 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runInit(args[1:], stdout, stderr)
 	case "adapter":
 		return runAdapter(args[1:], stdout, stderr)
+	case "backup":
+		return runBackup(args[1:], stdout, stderr)
+	case "dream":
+		return runDream(args[1:], stdout, stderr)
 	case "import":
 		return runImport(args[1:], stdout, stderr)
 	case "index":
 		return runIndex(args[1:], stdout, stderr)
+	case "mcp":
+		return runMCP(args[1:], stdout, stderr)
+	case "review":
+		return runReview(args[1:], stdout, stderr)
 	case "scan":
 		return runScan(args[1:], stdout, stderr)
 	case "capture":
@@ -58,6 +70,135 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		printUsage(stderr)
+		return 2
+	}
+}
+
+func runBackup(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
+		return 2
+	}
+	passphrase := flagValue(args[1:], "--passphrase")
+	switch args[0] {
+	case "create":
+		repoRoot, err := repoForArgs(args[1:])
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+		output := flagValue(args[1:], "--output")
+		if output == "" {
+			fmt.Fprintln(stderr, "backup create requires --output <file>")
+			return 2
+		}
+		if err := backup.Create(repoRoot, output, passphrase); err != nil {
+			fmt.Fprintf(stderr, "backup create failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Backup written to: %s\n", output)
+		return 0
+	case "restore":
+		input := flagValue(args[1:], "--input")
+		target := flagValue(args[1:], "--target")
+		if input == "" || target == "" {
+			fmt.Fprintln(stderr, "backup restore requires --input <file> --target <path>")
+			return 2
+		}
+		if err := backup.Restore(input, target, passphrase); err != nil {
+			fmt.Fprintf(stderr, "backup restore failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Backup restored to: %s\n", target)
+		return 0
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
+		return 2
+	}
+}
+
+func runDream(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	path, err := dream.Run(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "dream failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Dream suggestions written to: %s\n", path)
+	return 0
+}
+
+func runMCP(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 || args[0] != "serve" {
+		fmt.Fprintln(stderr, "usage: knowblazer mcp serve [--repo <path>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	if err := mcp.Serve(repoRoot, os.Stdin, stdout); err != nil {
+		fmt.Fprintf(stderr, "mcp serve failed: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	switch args[0] {
+	case "list":
+		candidates, err := review.List(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "review list failed: %v\n", err)
+			return 1
+		}
+		for _, candidate := range candidates {
+			fmt.Fprintf(stdout, "%s  %s\n", levelString(candidate.Level), candidate.Path)
+		}
+		return 0
+	case "promote":
+		values := nonFlagArgs(args[1:])
+		target := flagValue(args[1:], "--to")
+		if len(values) != 1 || target == "" {
+			fmt.Fprintln(stderr, "review promote requires <file> --to <target>")
+			return 2
+		}
+		result, err := review.Promote(repoRoot, values[0], target)
+		if err != nil {
+			fmt.Fprintf(stderr, "review promote failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Promoted to: %s\n", result.Path)
+		return 0
+	case "reject":
+		values := nonFlagArgs(args[1:])
+		if len(values) != 1 {
+			fmt.Fprintln(stderr, "review reject requires <file>")
+			return 2
+		}
+		path, err := review.Reject(repoRoot, values[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "review reject failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Rejected to: %s\n", path)
+		return 0
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
 		return 2
 	}
 }
@@ -496,8 +637,12 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  init [path]    initialize a Knowblazer memory repo")
 	fmt.Fprintln(w, "  scan <path> [--repo <path>]    scan a file or directory for sensitive content")
 	fmt.Fprintln(w, "  adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
+	fmt.Fprintln(w, "  backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
+	fmt.Fprintln(w, "  dream [--repo <path>]")
 	fmt.Fprintln(w, "  import specstory <path> [--repo <path>]")
 	fmt.Fprintln(w, "  index <build|search> [query] [--repo <path>]")
+	fmt.Fprintln(w, "  mcp serve [--repo <path>]")
+	fmt.Fprintln(w, "  review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
 	fmt.Fprintln(w, "  daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
 	fmt.Fprintln(w, "  doctor [--repo <path>]")
 	fmt.Fprintln(w, "  project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
