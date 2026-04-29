@@ -5,13 +5,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/knowblazer/knowblazer/internal/capture"
+	"github.com/knowblazer/knowblazer/internal/daily"
 	"github.com/knowblazer/knowblazer/internal/doctor"
+	"github.com/knowblazer/knowblazer/internal/projectmap"
 	"github.com/knowblazer/knowblazer/internal/promote"
 	"github.com/knowblazer/knowblazer/internal/recall"
 	"github.com/knowblazer/knowblazer/internal/repo"
 	"github.com/knowblazer/knowblazer/internal/scan"
+	ksync "github.com/knowblazer/knowblazer/internal/sync"
 )
 
 func Run(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -27,10 +31,16 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runScan(args[1:], stdout, stderr)
 	case "capture":
 		return runCapture(args[1:], stdout, stderr)
+	case "daily":
+		return runDaily(args[1:], stdout, stderr)
 	case "doctor":
 		return runDoctor(args[1:], stdout, stderr)
+	case "project":
+		return runProject(args[1:], stdout, stderr)
 	case "promote":
 		return runPromote(args[1:], stdout, stderr)
+	case "sync":
+		return runSync(args[1:], stdout, stderr)
 	case "recall":
 		return runRecall(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
@@ -41,6 +51,134 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		printUsage(stderr)
 		return 2
 	}
+}
+
+func runDaily(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	switch args[0] {
+	case "add":
+		text := strings.TrimSpace(strings.Join(nonFlagArgs(args[1:]), " "))
+		path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
+		if err != nil {
+			fmt.Fprintf(stderr, "daily add failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Daily note updated: %s\n", path)
+		return 0
+	case "show":
+		date, err := daily.ParseDate(flagValue(args[1:], "--date"))
+		if err != nil {
+			fmt.Fprintf(stderr, "invalid date: %v\n", err)
+			return 2
+		}
+		content, _, err := daily.Show(repoRoot, daily.ShowOptions{Date: date})
+		if err != nil {
+			fmt.Fprintf(stderr, "daily show failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprint(stdout, string(content))
+		return 0
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
+		return 2
+	}
+}
+
+func runProject(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	workspace := flagValue(args[1:], "--path")
+	if workspace == "" {
+		workspace, _ = os.Getwd()
+	}
+	switch args[0] {
+	case "set":
+		values := nonFlagArgs(args[1:])
+		if len(values) != 1 {
+			fmt.Fprintln(stderr, "project set requires a project name")
+			return 2
+		}
+		if err := projectmap.Set(repoRoot, workspace, values[0]); err != nil {
+			fmt.Fprintf(stderr, "project set failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Mapped %s to project %s\n", workspace, values[0])
+		return 0
+	case "show":
+		mappings, err := projectmap.List(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "project show failed: %v\n", err)
+			return 1
+		}
+		for _, mapping := range mappings {
+			fmt.Fprintf(stdout, "%s  %s\n", mapping.Project, mapping.Path)
+		}
+		return 0
+	case "clear":
+		if err := projectmap.Clear(repoRoot, workspace); err != nil {
+			fmt.Fprintf(stderr, "project clear failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Cleared project mapping for %s\n", workspace)
+		return 0
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
+		return 2
+	}
+}
+
+func runSync(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer sync <status|commit|push|pull> [--repo <path>] [--message <text>]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	var result ksync.Result
+	switch args[0] {
+	case "status":
+		result, err = ksync.Status(repoRoot)
+	case "commit":
+		message := flagValue(args[1:], "--message")
+		if message == "" {
+			message = flagValue(args[1:], "-m")
+		}
+		result, err = ksync.Commit(repoRoot, message)
+	case "push":
+		result, err = ksync.Push(repoRoot)
+	case "pull":
+		result, err = ksync.Pull(repoRoot)
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer sync <status|commit|push|pull> [--repo <path>] [--message <text>]")
+		return 2
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "sync failed: %v\n", err)
+		if result.Output != "" {
+			fmt.Fprint(stderr, result.Output)
+		}
+		return 1
+	}
+	fmt.Fprint(stdout, result.Output)
+	return 0
 }
 
 func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -92,6 +230,13 @@ func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 2
 	}
 	project, _ := valueForFlag(args, "--project")
+	if project == "" {
+		if cwd, err := os.Getwd(); err == nil {
+			if mapped, ok, err := projectmap.Resolve(repoRoot, cwd); err == nil && ok {
+				project = mapped
+			}
+		}
+	}
 	output, _ := valueForFlag(args, "--output")
 
 	pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
@@ -256,7 +401,10 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "commands:")
 	fmt.Fprintln(w, "  init [path]    initialize a Knowblazer memory repo")
 	fmt.Fprintln(w, "  scan <path> [--repo <path>]    scan a file or directory for sensitive content")
+	fmt.Fprintln(w, "  daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
 	fmt.Fprintln(w, "  doctor [--repo <path>]")
+	fmt.Fprintln(w, "  project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
+	fmt.Fprintln(w, "  sync <status|commit|push|pull> [--repo <path>] [--message <text>]")
 	fmt.Fprintln(w, "  capture <file> --repo <path>")
 	fmt.Fprintln(w, "  promote <file> --to <target> --repo <path>")
 	fmt.Fprintln(w, "  recall --task <text> --repo <path> [--project <name>] [--output <file>]")
@@ -294,6 +442,34 @@ func valueForFlag(args []string, name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func repoForArgs(args []string) (string, error) {
+	repoRoot, ok := valueForFlag(args, "--repo")
+	if !ok || repoRoot == "" {
+		return discoverRepo()
+	}
+	if err := repo.MustBeRepo(repoRoot); err != nil {
+		return "", err
+	}
+	return repoRoot, nil
+}
+
+func flagValue(args []string, name string) string {
+	value, _ := valueForFlag(args, name)
+	return value
+}
+
+func nonFlagArgs(args []string) []string {
+	var out []string
+	for i := 0; i < len(args); i++ {
+		if strings.HasPrefix(args[i], "-") {
+			i++
+			continue
+		}
+		out = append(out, args[i])
+	}
+	return out
 }
 
 func discoverRepo() (string, error) {

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -279,6 +280,108 @@ func TestRunPromoteUsesRepoAndTargetFlags(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Promoted to:") {
 		t.Fatalf("stdout missing promote message: %s", stdout.String())
+	}
+}
+
+func TestRunDailyAddAndShow(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"daily", "add", "finished", "deploy", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("daily add code = %d, stderr = %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"daily", "show", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("daily show code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "finished deploy") {
+		t.Fatalf("daily show missing entry: %s", stdout.String())
+	}
+}
+
+func TestRunProjectSetShowAndRecallMapping(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	project := filepath.Join(root, "projects", "kiblazer.md")
+	if err := os.WriteFile(project, []byte("# Kiblazer\n\nMapped project context.\n"), 0o644); err != nil {
+		t.Fatalf("write project: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"project", "set", "kiblazer", "--path", workspace, "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("project set code = %d, stderr = %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"project", "show", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("project show code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "kiblazer") {
+		t.Fatalf("project show missing mapping: %s", stdout.String())
+	}
+	oldwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir workspace: %v", err)
+	}
+	defer os.Chdir(oldwd)
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"recall", "--task", "deploy", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Mapped project context.") {
+		t.Fatalf("recall missing mapped project context: %s", stdout.String())
+	}
+}
+
+func TestRunSyncStatus(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	runTestGit(t, root, "init")
+	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
+		t.Fatalf("write project: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"sync", "status", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("sync status code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "projects/") {
+		t.Fatalf("sync status missing projects directory: %s", stdout.String())
+	}
+}
+
+func runTestGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
 }
 
