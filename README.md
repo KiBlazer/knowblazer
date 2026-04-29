@@ -37,6 +37,20 @@ Knowblazer is not:
 - another MCP memory server
 - a team knowledge base
 
+## Installation
+
+Install the latest released CLI with Go:
+
+```bash
+go install github.com/knowblazer/knowblazer/cmd/knowblazer@latest
+```
+
+For local development from this repository:
+
+```bash
+make install
+```
+
 ## MVP Flow
 
 The first version focuses on one path:
@@ -175,4 +189,4 @@ Knowblazer: reviewed private engineering memory
 
 ## License
 
-License is not selected yet.
+Knowblazer is released under the MIT License. See [LICENSE](LICENSE).
