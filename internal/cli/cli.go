@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/knowblazer/knowblazer/internal/capture"
+	"github.com/knowblazer/knowblazer/internal/doctor"
 	"github.com/knowblazer/knowblazer/internal/promote"
 	"github.com/knowblazer/knowblazer/internal/recall"
 	"github.com/knowblazer/knowblazer/internal/repo"
@@ -26,6 +27,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runScan(args[1:], stdout, stderr)
 	case "capture":
 		return runCapture(args[1:], stdout, stderr)
+	case "doctor":
+		return runDoctor(args[1:], stdout, stderr)
 	case "promote":
 		return runPromote(args[1:], stdout, stderr)
 	case "recall":
@@ -38,6 +41,35 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		printUsage(stderr)
 		return 2
 	}
+}
+
+func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) != 0 && len(args) != 2 {
+		fmt.Fprintln(stderr, "usage: knowblazer doctor [--repo <path>]")
+		return 2
+	}
+	repoRoot, ok := valueForFlag(args, "--repo")
+	if len(args) == 2 && (!ok || repoRoot == "") {
+		fmt.Fprintln(stderr, "usage: knowblazer doctor [--repo <path>]")
+		return 2
+	}
+	if !ok || repoRoot == "" {
+		var err error
+		repoRoot, err = discoverRepo()
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+	}
+
+	result := doctor.Run(repoRoot)
+	for _, check := range result.Checks {
+		fmt.Fprintf(stdout, "%s  %s  %s\n", doctorStatusString(check.Status), check.Name, check.Message)
+	}
+	if result.HasFailures() {
+		return 1
+	}
+	return 0
 }
 
 func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -165,7 +197,11 @@ func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 2
 	}
 
+	highCount := 0
 	for _, finding := range result.Findings {
+		if finding.Level == scan.High {
+			highCount++
+		}
 		fmt.Fprintf(
 			stdout,
 			"%s  %s:%d  %s  %s\n",
@@ -176,9 +212,9 @@ func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
 			finding.Snippet,
 		)
 	}
+	fmt.Fprintf(stdout, "Summary: %s, %d findings, %d high-risk\n", result.Level.String(), len(result.Findings), highCount)
 
 	if result.Level == scan.Clean {
-		fmt.Fprintln(stdout, "clean")
 		return 0
 	}
 	return 1
@@ -210,6 +246,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "commands:")
 	fmt.Fprintln(w, "  init <path>    initialize a Knowblazer memory repo")
 	fmt.Fprintln(w, "  scan <path>    scan a file or directory for sensitive content")
+	fmt.Fprintln(w, "  doctor [--repo <path>]")
 	fmt.Fprintln(w, "  capture <file> --repo <path>")
 	fmt.Fprintln(w, "  promote <file> --to <target> --repo <path>")
 	fmt.Fprintln(w, "  recall --task <text> --repo <path> [--project <name>] [--output <file>]")
@@ -223,6 +260,17 @@ func levelString(level scan.Level) string {
 		return "WARNING"
 	default:
 		return "CLEAN"
+	}
+}
+
+func doctorStatusString(status doctor.Status) string {
+	switch status {
+	case doctor.Warn:
+		return "WARN"
+	case doctor.Fail:
+		return "FAIL"
+	default:
+		return "OK"
 	}
 }
 

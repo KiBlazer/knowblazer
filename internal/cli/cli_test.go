@@ -8,6 +8,84 @@ import (
 	"testing"
 )
 
+func TestRunHelpIncludesDoctor(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{"help"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("help code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "doctor [--repo <path>]") {
+		t.Fatalf("stdout missing doctor usage: %s", stdout.String())
+	}
+}
+
+func TestRunDoctorUsesRepoFlag(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"doctor", "--repo", root}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("doctor code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "OK  config") {
+		t.Fatalf("stdout missing config check: %s", out)
+	}
+	if !strings.Contains(out, "WARN  git-repo") {
+		t.Fatalf("stdout missing local-first git warning: %s", out)
+	}
+}
+
+func TestRunDoctorDiscoversRepoFromEnvironment(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	t.Setenv("KNOWBLAZER_REPO", root)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"doctor"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("doctor code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "OK  config") {
+		t.Fatalf("stdout missing config check: %s", stdout.String())
+	}
+}
+
+func TestRunDoctorReturnsOneForFailures(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	if err := os.Remove(filepath.Join(root, ".knowblazer", "config.json")); err != nil {
+		t.Fatalf("remove config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"doctor", "--repo", root}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("doctor code = %d, want 1; stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "FAIL  config") {
+		t.Fatalf("stdout missing config failure: %s", stdout.String())
+	}
+}
+
 func TestRunInitCreatesRepoAndPrintsNextSteps(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var stdout bytes.Buffer
@@ -63,8 +141,28 @@ func TestRunScanPrintsRedactedFinding(t *testing.T) {
 	if !strings.Contains(out, "password=****") {
 		t.Fatalf("stdout missing redacted snippet: %s", out)
 	}
+	if !strings.Contains(out, "Summary: high, 1 findings, 1 high-risk") {
+		t.Fatalf("stdout missing scan summary: %s", out)
+	}
 	if strings.Contains(out, "super-secret-password") {
 		t.Fatalf("stdout leaked secret: %s", out)
+	}
+}
+
+func TestRunScanPrintsCleanSummary(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "lesson.md")
+	if err := os.WriteFile(file, []byte("# Lesson\n\nNo secrets here.\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"scan", file}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Summary: clean, 0 findings, 0 high-risk") {
+		t.Fatalf("stdout missing clean summary: %s", stdout.String())
 	}
 }
 

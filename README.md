@@ -55,14 +55,24 @@ promote reviewed memory
 generate a recall pack for an AI coding task
 ```
 
-Planned P0 commands:
+P0 commands:
 
 ```bash
 knowblazer init ~/knowblazer-notes
+knowblazer doctor --repo ~/knowblazer-notes
 knowblazer capture ./deploy-lesson.md --repo ~/knowblazer-notes
 knowblazer scan ~/knowblazer-notes
 knowblazer promote inbox/2026-04-29/deploy-lesson.md --to experience/deployment --repo ~/knowblazer-notes
 knowblazer recall --task "deploy new frontend" --project my-project --repo ~/knowblazer-notes
+```
+
+Development helpers:
+
+```bash
+make test
+make build
+make install
+make clean
 ```
 
 ## Memory Repo Structure
@@ -117,7 +127,7 @@ Knowblazer should not automatically commit or push memory. Any future sync helpe
 
 ## Project Status
 
-Knowblazer currently has an early P0 CLI implementation for local use. The implementation covers `init`, `scan`, `capture`, `promote`, and `recall`.
+Knowblazer currently has an early P0 CLI implementation for local use. The implementation covers `init`, `doctor`, `scan`, `capture`, `promote`, and `recall`.
 
 Current artifacts:
 
