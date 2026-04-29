@@ -1,0 +1,29 @@
+# Build artifacts
+/knowblazer
+/bin/
+/dist/
+/build/
+
+# Go test and coverage output
+*.test
+*.out
+coverage.*
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
