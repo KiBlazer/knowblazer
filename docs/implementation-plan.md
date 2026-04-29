@@ -1,10 +1,10 @@
-# Knowblazer P0 实现计划
+# Knowblazer P0 Implementation Plan
 
-日期：2026-04-29
+Date: 2026-04-29
 
-## 1. 实现目标
+## 1. Implementation Goal
 
-P0 目标是实现一个可本地运行的 CLI，跑通 MVP 规格中的核心路径：
+The P0 goal is to implement a locally runnable CLI that completes the core path from the MVP specification:
 
 ```text
 init
@@ -18,25 +18,25 @@ promote
 recall
 ```
 
-P0 不依赖网络、不依赖官方账号、不依赖 LLM API、不自动 commit、不自动 push。
+P0 does not require network access, an official account, an LLM API, automatic commits, or automatic pushes.
 
-## 2. 推荐技术栈
+## 2. Recommended Technology Stack
 
-推荐使用 Go。
+Go is recommended.
 
-原因：
+Reasons:
 
-- 单二进制分发适合 CLI 工具。
-- 标准库对文件、路径、时间、正则、测试支持足够。
-- 跨平台成本较低。
-- 对 Git/Markdown 这类本地文件工作流很合适。
-- P0 不需要复杂运行时或外部服务。
+- Single-binary distribution is a good fit for CLI tools.
+- The standard library is sufficient for files, paths, time, regex, and testing.
+- Cross-platform support is relatively low-cost.
+- Go works well for local file workflows such as Git and Markdown.
+- P0 does not need a complex runtime or external services.
 
-可以使用少量依赖，但 P0 应优先标准库。CLI 参数解析可以先用标准库 `flag`，后续需要更好 UX 时再引入 Cobra 或 urfave/cli。
+A small number of dependencies may be used, but P0 should prefer the standard library. CLI argument parsing can start with the standard library `flag` package; Cobra or urfave/cli can be introduced later if better UX is needed.
 
-## 3. 代码结构建议
+## 3. Suggested Code Structure
 
-建议结构：
+Suggested structure:
 
 ```text
 knowblazer/
@@ -59,236 +59,236 @@ knowblazer/
 └── README.md
 ```
 
-模块职责：
+Module responsibilities:
 
-- `cli/`：命令分发、参数解析、错误输出。
-- `repo/`：记忆库发现、路径校验、配置读取、目录创建。
-- `templates/`：嵌入默认模板并写入目标目录。
-- `scan/`：敏感信息规则、扫描结果、脱敏输出。
-- `capture/`：读取 Markdown、扫描、写入 inbox/quarantine。
-- `promote/`：目标路径校验、扫描、移动文件、更新状态。
-- `recall/`：关键词匹配、候选文件选择、上下文包生成。
-- `markdown/`：标题提取、front matter 读写、slug 生成。
+- `cli/`: command dispatch, argument parsing, and error output.
+- `repo/`: memory repo discovery, path validation, config reading, and directory creation.
+- `templates/`: embed default templates and write them to the target directory.
+- `scan/`: sensitive information rules, scan results, and redacted output.
+- `capture/`: read Markdown, scan, and write to inbox or quarantine.
+- `promote/`: validate target paths, scan, move files, and update status.
+- `recall/`: keyword matching, candidate file selection, and context pack generation.
+- `markdown/`: title extraction, front matter read/write, and slug generation.
 
-## 4. 实施阶段
+## 4. Implementation Phases
 
-### 4.1 阶段一：项目骨架
+### 4.1 Phase One: Project Skeleton
 
-任务：
+Tasks:
 
-- 初始化 Go module。
-- 创建 CLI 入口。
-- 支持 `knowblazer --help`。
-- 支持命令分发：`init`、`scan`、`capture`、`promote`、`recall`。
-- 增加基础测试目录。
+- Initialize the Go module.
+- Create the CLI entry point.
+- Support `knowblazer --help`.
+- Support command dispatch for `init`, `scan`, `capture`, `promote`, and `recall`.
+- Add the basic test structure.
 
-验收：
+Acceptance:
 
-- `go test ./...` 通过。
-- 未实现命令给出清晰错误或 help。
+- `go test ./...` passes.
+- Unimplemented commands return a clear error or help output.
 
-### 4.2 阶段二：repo 与 init
+### 4.2 Phase Two: Repo and Init
 
-任务：
+Tasks:
 
-- 实现 `.knowblazer/config.json` 识别。
-- 实现 repo 查找顺序：
-  1. 当前目录。
-  2. 父级目录。
-  3. `KNOWBLAZER_REPO`。
-  4. 默认路径。
-- 使用 `templates/default-memory-repo/` 生成记忆库。
-- 保证 init 幂等，不覆盖已有文件。
-- 非空非 Knowblazer 目录默认失败。
+- Implement `.knowblazer/config.json` recognition.
+- Implement repo lookup order:
+  1. Current directory.
+  2. Parent directories.
+  3. `KNOWBLAZER_REPO`.
+  4. Default path.
+- Generate the memory repository from `templates/default-memory-repo/`.
+- Ensure init is idempotent and does not overwrite existing files.
+- Fail by default for non-empty directories that are not Knowblazer repos.
 
-验收：
+Acceptance:
 
-- 空目录 init 生成完整结构。
-- 重复 init 不覆盖用户内容。
-- 非空普通目录 init 失败并提示。
+- Init in an empty directory creates the full structure.
+- Re-running init does not overwrite user content.
+- Init fails with a clear message for a non-empty ordinary directory.
 
-### 4.3 阶段三：secret scan
+### 4.3 Phase Three: Secret Scan
 
-任务：
+Tasks:
 
-- 实现文件和目录扫描。
-- 递归扫描目录中的 Markdown、文本、env 类文件。
-- 实现规则：
-  - private key block
-  - token/api_key/secret 字段
-  - password 字段
-  - database URL
-  - common cloud secret env
-- 实现 risk level：`clean`、`warning`、`high`。
-- 输出行号、规则名、脱敏片段。
-- 避免完整输出 secret。
+- Implement file and directory scanning.
+- Recursively scan Markdown, text, and env-like files in directories.
+- Implement rules for:
+  - private key blocks
+  - token/api_key/secret fields
+  - password fields
+  - database URLs
+  - common cloud secret env variables
+- Implement risk levels: `clean`, `warning`, and `high`.
+- Output line number, rule name, and redacted snippet.
+- Avoid printing full secrets.
 
-验收：
+Acceptance:
 
-- mock private key 被识别。
-- mock database URL 被识别。
-- mock password 被识别。
-- 输出脱敏。
-- clean 返回 exit code 0，风险返回 exit code 1，命令错误返回 exit code 2。
+- Mock private keys are detected.
+- Mock database URLs are detected.
+- Mock passwords are detected.
+- Output is redacted.
+- Clean results return exit code 0, risky results return exit code 1, and command errors return exit code 2.
 
-### 4.4 阶段四：Markdown 工具
+### 4.4 Phase Four: Markdown Utilities
 
-任务：
+Tasks:
 
-- 提取一级标题。
-- 从文件名生成 slug。
-- 生成 front matter。
-- 更新 front matter 状态字段。
-- 保持正文可读，不破坏原文。
+- Extract first-level headings.
+- Generate slugs from filenames.
+- Generate front matter.
+- Update front matter status fields.
+- Keep body content readable and avoid damaging the original text.
 
-验收：
+Acceptance:
 
-- 无标题文件也能生成可读标题。
-- 已有 front matter 的文件不会被粗暴破坏。
-- 生成的 Markdown 人类可读。
+- Files without headings still get readable titles.
+- Files with existing front matter are not destructively rewritten.
+- Generated Markdown is human-readable.
 
-### 4.5 阶段五：capture
+### 4.5 Phase Five: Capture
 
-任务：
+Tasks:
 
-- 只接受 `.md` / `.markdown`。
-- capture 前执行 scan。
-- clean/warning 写入 `inbox/YYYY-MM-DD/`。
-- high 写入 `quarantine/YYYY-MM-DD/`。
-- 目标文件名使用 `YYYYMMDD-HHMMSS-<slug>.md`。
-- 写入 front matter。
-- 不自动 commit/push。
+- Accept only `.md` and `.markdown` files.
+- Run scan before capture.
+- Write clean or warning files to `inbox/YYYY-MM-DD/`.
+- Write high-risk files to `quarantine/YYYY-MM-DD/`.
+- Use destination filenames in the form `YYYYMMDD-HHMMSS-<slug>.md`.
+- Write front matter.
+- Do not automatically commit or push.
 
-验收：
+Acceptance:
 
-- clean Markdown 进入 inbox。
-- high Markdown 进入 quarantine。
-- 输出明确保存路径和扫描结果。
-- 不会修改源文件。
+- Clean Markdown enters inbox.
+- High-risk Markdown enters quarantine.
+- Output clearly shows the saved path and scan result.
+- The source file is not modified.
 
-### 4.6 阶段六：promote
+### 4.6 Phase Six: Promote
 
-任务：
+Tasks:
 
-- 支持 `promote <file> --to <target>`。
-- 源文件重新 scan。
-- high 文件阻止 promote。
-- 目标只允许 `experience/`、`projects/`、`profile/`。
-- 阻止路径逃逸。
-- 默认不覆盖已有目标。
-- 更新 front matter：`status`、`promoted_at`、`promoted_to`。
+- Support `promote <file> --to <target>`.
+- Re-scan the source file.
+- Block promotion for high-risk files.
+- Allow targets only under `experience/`, `projects/`, or `profile/`.
+- Block path escape.
+- Do not overwrite existing targets by default.
+- Update front matter: `status`, `promoted_at`, and `promoted_to`.
 
-验收：
+Acceptance:
 
-- inbox 文件可提升到 `experience/deployment/`。
-- high 文件不可提升。
-- `--to ../../x` 被阻止。
-- 已存在目标不覆盖。
+- Inbox files can be promoted to `experience/deployment/`.
+- High-risk files cannot be promoted.
+- `--to ../../x` is blocked.
+- Existing targets are not overwritten.
 
-### 4.7 阶段七：recall
+### 4.7 Phase Seven: Recall
 
-任务：
+Tasks:
 
-- 支持 `recall --task <text>`。
-- 读取：
+- Support `recall --task <text>`.
+- Read:
   - `profile/preferences.md`
   - `profile/decision-principles.md`
   - `projects/<project>.md`
-  - 匹配的 `experience/**/*.md`
-  - 今天和昨天的 `daily/*.md`
-- 默认排除 `inbox/`、`quarantine/`、`recall/`。
-- 实现简单关键词匹配和文件排序。
-- 生成 Markdown recall pack。
-- 支持 `--output <file>`。
-- 控制输出长度。
+  - matching `experience/**/*.md`
+  - today's and yesterday's `daily/*.md`
+- Exclude `inbox/`, `quarantine/`, and `recall/` by default.
+- Implement simple keyword matching and file ranking.
+- Generate a Markdown recall pack.
+- Support `--output <file>`.
+- Control output length.
 
-验收：
+Acceptance:
 
-- 无 task 失败。
-- 输出包含任务和生成时间。
-- 默认不包含 inbox/quarantine。
-- 匹配 experience 不拼接整个仓库。
-- `--output` 能写文件。
+- Missing task fails.
+- Output includes task and generated time.
+- Output excludes inbox and quarantine by default.
+- Matching experience does not concatenate the whole repository.
+- `--output` writes a file.
 
-### 4.8 阶段八：端到端验证
+### 4.8 Phase Eight: End-to-End Verification
 
-任务：
+Tasks:
 
-- 用临时目录模拟完整路径。
-- 加入 README 中的命令示例验证。
-- 增加一个 fixture：
+- Simulate the full path in a temporary directory.
+- Verify README command examples.
+- Add fixtures for:
   - clean lesson
   - secret lesson
   - project context
   - experience note
   - daily note
 
-验收：
+Acceptance:
 
-- `go test ./...` 通过。
-- 手动执行 MVP flow 成功。
-- 无网络环境可运行。
+- `go test ./...` passes.
+- Manual MVP flow succeeds.
+- The tool runs without network access.
 
-## 5. 测试策略
+## 5. Test Strategy
 
-P0 以单元测试和临时目录集成测试为主。
+P0 should primarily use unit tests and temporary-directory integration tests.
 
-必须测试：
+Required tests:
 
-- repo 查找和路径安全。
-- init 幂等。
-- scan 规则和脱敏。
-- capture 目标选择。
-- promote 目标限制。
-- recall 排除规则。
+- Repo discovery and path safety.
+- Init idempotency.
+- Scan rules and redaction.
+- Capture destination selection.
+- Promote target restrictions.
+- Recall exclusion rules.
 
-测试应使用临时目录，不依赖用户真实 home，不读写真实 Git remote。
+Tests should use temporary directories, not depend on the user's real home directory, and not read or write a real Git remote.
 
-## 6. 路径安全要求
+## 6. Path Safety Requirements
 
-所有写入都必须在 Knowblazer repo 内，除非用户显式指定读取源文件。
+All writes must stay inside the Knowblazer repo unless the user explicitly specifies a source file to read.
 
-必须防止：
+The implementation must prevent:
 
-- `../` 路径逃逸。
-- 通过 symlink 写出 repo。
-- promote 到 `.knowblazer/`。
-- promote 到 `quarantine/` 或 `recall/`。
-- recall 读取 `quarantine/`。
+- `../` path escape.
+- Writing outside the repo through symlinks.
+- Promotion to `.knowblazer/`.
+- Promotion to `quarantine/` or `recall/`.
+- Recall reading from `quarantine/`.
 
-## 7. 输出风格
+## 7. Output Style
 
-CLI 输出应简洁、明确、可脚本化。
+CLI output should be concise, clear, and script-friendly.
 
-推荐：
+Recommended:
 
-- 成功输出保存路径。
-- 风险输出命中规则和脱敏片段。
-- 错误输出下一步建议。
+- Print saved paths on success.
+- Print matched rules and redacted snippets for risks.
+- Print next-step guidance for errors.
 
-避免：
+Avoid:
 
-- 打印完整 secret。
-- 输出大段无关说明。
-- 自动执行 Git 操作。
+- Printing full secrets.
+- Printing large blocks of unrelated explanation.
+- Automatically running Git operations.
 
-## 8. 暂不实现
+## 8. Not Implemented in P0
 
-P0 不实现：
+P0 does not implement:
 
-- Git commit/push。
-- Git remote 配置。
-- SpecStory 导入。
-- AI 工具 hook。
-- MCP server。
-- SQLite 或向量索引。
-- LLM 总结。
-- Web UI。
-- 后台任务。
+- Git commit/push.
+- Git remote configuration.
+- SpecStory import.
+- AI tool hooks.
+- MCP server.
+- SQLite or vector indexing.
+- LLM summarization.
+- Web UI.
+- Background jobs.
 
-## 9. 建议里程碑
+## 9. Suggested Milestones
 
-建议按以下顺序提交：
+Suggested commit order:
 
 1. Go module and CLI skeleton.
 2. Repo discovery and init from templates.
@@ -298,4 +298,4 @@ P0 不实现：
 6. Recall command.
 7. End-to-end tests and README command alignment.
 
-每个里程碑都应保持 `go test ./...` 通过。
+Each milestone should keep `go test ./...` passing.

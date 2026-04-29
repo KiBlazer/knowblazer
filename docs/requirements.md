@@ -1,101 +1,99 @@
-# Knowblazer 产品需求文档
+# Knowblazer Product Requirements
 
-日期：2026-04-29
+Date: 2026-04-29
 
-## 1. 背景与机会
+## 1. Background and Opportunity
 
-AI Coding 工具正在从单一 IDE 插件变成多工具、多终端、多模型协作的日常工作流。开发者可能同时使用 Claude Code、Codex、Gemini、Cursor、SpecStory 等工具，但这些工具之间的长期记忆并不互通。
+AI coding tools are moving from a single IDE plugin into a daily workflow that spans multiple tools, terminals, and models. Developers may use Claude Code, Codex, Gemini, Cursor, SpecStory, and other tools at the same time, but long-term memory does not travel well between them.
 
-真实问题不是“AI 能不能记住东西”，而是：
+The real problem is not whether an AI tool can remember things. The problem is:
 
-> 开发者如何拥有一套自己可控制、可迁移、可审计、可被不同 AI Coding 工具使用的工程记忆。
+> How can developers own an engineering memory system that they control, can move, can audit, and can reuse across different AI coding tools?
 
-现在是做 Knowblazer 的合适时机，原因有四个：
+Now is the right time to build Knowblazer for four reasons:
 
-- AI Coding 工具多样化，个人工程经验开始被分散到不同工具和会话中。
-- SpecStory 等项目让 AI 对话捕获逐渐成熟，但原始对话不等于长期工程记忆。
-- 开发者已经熟悉 Git、Markdown、dotfiles、private repo 这类本地优先工作流。
-- memory server 和 agent memory backend 赛道拥挤，但“私有 Git 工程记忆库”仍然是一个更窄、更清晰的机会。
+- AI coding tools are diversifying, and personal engineering experience is being scattered across tools and sessions.
+- Projects like SpecStory are making AI conversation capture more mature, but raw conversations are not the same as long-term engineering memory.
+- Developers already understand local-first workflows such as Git, Markdown, dotfiles, and private repositories.
+- The memory server and agent memory backend space is crowded, but "private Git-backed engineering memory" is still a narrower and clearer opportunity.
 
-Knowblazer 要抓住的是这个窄机会：让开发者把 AI Coding 过程中产生的经验、偏好、项目背景和踩坑记录沉淀到自己的私有 Git 仓库中，并能在需要时召回给不同 AI Coding 工具使用。
+Knowblazer should focus on this narrow opportunity: help developers turn experience, preferences, project context, and hard-won lessons from AI coding work into their own private Git repository, and recall that memory when different AI coding tools need it.
 
-## 2. 产品定位
+## 2. Product Positioning
 
-Knowblazer 的定位是：
+Knowblazer is:
 
 > Private Git-backed engineering memory for AI coding.
 
-中文表达：
+Knowblazer is an open-source tool for maintaining your own private Git engineering memory repository, so AI coding tools can safely reuse your engineering experience.
 
-> Knowblazer 是一个开源工具，用来维护你自己的私有 Git 工程记忆库，让 AI Coding 工具可以安全复用你的工程经验。
+Product boundaries must stay clear:
 
-产品边界必须清楚：
+- Knowblazer is a tool, specification, template set, and adapter layer.
+- User memory repositories are stored by default in a local directory or user-owned private Git remote.
+- In the first stage, Knowblazer does not provide an official cloud service and does not host personal engineering memory.
+- Markdown/Git is the primary storage. Indexing, search, MCP, and vector databases are enhancement layers.
 
-- Knowblazer 是工具、规范、模板和 adapter。
-- 用户记忆库默认保存在用户自己的本地目录或私有 Git remote。
-- Knowblazer 第一阶段不提供官方云服务，不托管用户个人工程记忆。
-- Markdown/Git 是主存储；索引、检索、MCP、向量库都只能是后续增强层。
-
-一句话区别：
+One-line distinction:
 
 ```text
 SpecStory remembers AI coding conversations.
 Knowblazer turns selected conversations, notes, and lessons into a private engineering memory repo.
 ```
 
-## 3. 目标用户
+## 3. Target Users
 
-第一阶段只服务个人开发者，不服务团队知识库和企业协作平台。
+The first stage serves individual developers only. It is not a team knowledge base or enterprise collaboration platform.
 
-### 3.1 首批用户画像
+### 3.1 Initial User Profiles
 
-**多 AI 工具切换的独立开发者**
+**Independent developers switching between multiple AI tools**
 
-这类用户同时使用 Claude Code、Codex、Cursor、Gemini。每个工具都知道一点上下文，但没有一个地方能沉淀稳定的个人工程偏好和项目经验。他们需要一个工具无关的私有记忆库。
+These users work with Claude Code, Codex, Cursor, and Gemini at the same time. Each tool knows some context, but there is no shared place for stable personal engineering preferences and project experience. They need a tool-independent private memory repository.
 
-**多项目维护者**
+**Multi-project maintainers**
 
-这类用户维护多个项目，经常需要在不同仓库、服务器、部署流程和技术栈之间切换。他们的问题不是没有文档，而是项目上下文、部署坑、操作禁忌、决策原因散落在不同地方。
+These users maintain multiple projects and frequently switch between repositories, servers, deployment flows, and stacks. Their problem is not a lack of documentation; it is that project context, deployment pitfalls, operational constraints, and decision reasons are scattered across places.
 
-**隐私敏感的工程师**
+**Privacy-sensitive engineers**
 
-这类用户可能处理客户项目、内部系统、服务器信息或数据库连接。相比云端 memory 服务，他们更愿意把工程记忆放在自己的 private Git repo、自建 Git 或纯本地目录中。
+These users may handle client projects, internal systems, server details, or database connections. Compared with cloud memory services, they prefer storing engineering memory in a private Git repository, self-hosted Git, or a purely local directory.
 
-### 3.2 非目标用户
+### 3.2 Non-Target Users
 
-第一阶段不面向：
+The first stage is not for:
 
-- 非技术个人知识管理用户。
-- 团队知识库管理员。
-- 企业合规知识库平台。
-- 想要完整 AI 对话云同步和分享的人。
-- 想要无 Git 基础、纯图形化知识库的人。
+- Non-technical personal knowledge management users.
+- Team knowledge base administrators.
+- Enterprise compliance knowledge platforms.
+- Users who want complete AI conversation cloud sync and sharing.
+- Users who want a purely graphical knowledge base without Git basics.
 
-## 4. 核心问题
+## 4. Core Problems
 
-Knowblazer 第一阶段要解决四个问题。
+Knowblazer should solve four problems in the first stage.
 
-### 4.1 经验没有稳定归宿
+### 4.1 Experience Has No Stable Home
 
-开发经验可能散落在 AI 对话、本机分析目录、项目 README、Cursor 规则、Claude 记忆、Codex 会话里。换机器、换工具、换项目后，这些经验难以继续使用。
+Engineering experience may be scattered across AI conversations, local analysis directories, project READMEs, Cursor rules, Claude memory, and Codex sessions. After switching machines, tools, or projects, that experience is hard to reuse.
 
-### 4.2 AI 工具不能共享长期记忆
+### 4.2 AI Tools Cannot Share Long-Term Memory
 
-Claude Code 知道的偏好，Codex 不一定知道。Cursor 项目规则中的上下文，Gemini CLI 不一定能读取。开发者需要反复解释自己的工程偏好、项目背景和注意事项。
+Claude Code may know a preference that Codex does not. Context in Cursor project rules may not be available to Gemini CLI. Developers repeatedly explain their engineering preferences, project background, and operational constraints.
 
-### 4.3 自动保存存在隐私风险
+### 4.3 Automatic Saving Creates Privacy Risk
 
-AI Coding 会话里可能出现 token、password、private key、数据库连接串、内部域名、客户信息等内容。不能简单把所有对话自动保存并推送到远端。
+AI coding sessions may contain tokens, passwords, private keys, database connection strings, internal domains, or customer information. It is unsafe to automatically save and push every conversation.
 
-### 4.4 原始对话不等于长期记忆
+### 4.4 Raw Conversations Are Not Long-Term Memory
 
-完整 transcript 太长、太杂、噪声太多。真正有长期价值的是经过筛选的偏好、决策、项目背景、踩坑经验、排障方法和操作约束。
+Full transcripts are too long, too noisy, and too mixed. What has long-term value is selected and reviewed material: preferences, decisions, project context, pitfalls, debugging methods, and operational constraints.
 
-## 5. MVP 用户路径
+## 5. MVP User Journey
 
-MVP 的主线不是“支持很多功能”，而是让一个开发者在 10 分钟内跑通第一条私有工程记忆路径。
+The MVP is not about supporting many features. It is about letting one developer complete the first private engineering memory path within ten minutes.
 
-目标路径：
+Target path:
 
 ```text
 install Knowblazer
@@ -113,71 +111,71 @@ promote one reviewed lesson
 generate one recall pack for an AI coding task
 ```
 
-这个路径成功，才说明 Knowblazer 的核心假设成立。
+If this path works, Knowblazer's core hypothesis is validated.
 
-## 6. 功能范围与优先级
+## 6. Scope and Priorities
 
-第一版必须克制。下面的优先级用于指导实现取舍。
+The first version must stay focused. The priorities below guide implementation tradeoffs.
 
-### 6.1 P0：必须完成
+### 6.1 P0: Must Have
 
 **init**
 
-初始化一个本地 Knowblazer 记忆库，生成最小目录结构、入口说明和基础策略文件。
+Initialize a local Knowblazer memory repository with the minimal directory structure, entry instructions, and base policy files.
 
 **capture**
 
-把一个本地 Markdown 文件保存到记忆库。默认进入 `inbox/YYYY-MM-DD/`，并保留来源、时间、标题等基础元信息。
+Save a local Markdown file into the memory repository. By default it goes to `inbox/YYYY-MM-DD/` and keeps source, timestamp, title, and basic metadata.
 
 **scan**
 
-对待保存、待提交或待推送的内容进行敏感信息扫描。发现高风险内容时，默认写入或移动到 `quarantine/`，并阻止自动 commit/push。
+Scan content before saving, committing, or pushing. When high-risk content is found, the default behavior is to write or move it to `quarantine/` and block automatic commit or push.
 
 **promote**
 
-把 review 后的候选记忆从 `inbox/` 或 `daily/` 提升到长期目录，例如 `experience/`、`projects/` 或 `profile/`。第一版可以是显式命令或清晰的手动流程。
+Promote reviewed candidate memory from `inbox/` or `daily/` into long-term directories such as `experience/`, `projects/`, or `profile/`. The first version can be an explicit command or a clear manual workflow.
 
 **recall**
 
-根据任务描述生成一份短上下文包。第一版可以基于文件名、目录和关键词匹配，不要求语义向量检索。
+Generate a short context pack from a task description. The first version can use filenames, directories, and keyword matching; semantic vector search is not required.
 
-### 6.2 P1：应该完成
+### 6.2 P1: Should Have
 
 **sync helper**
 
-提供基于用户自有 Git remote 的同步辅助。Knowblazer 可以提示或封装 `git status`、`git commit`、`git push`，但不提供官方 remote。
+Provide sync helpers based on the user's own Git remote. Knowblazer may prompt or wrap `git status`, `git commit`, and `git push`, but must not provide an official remote.
 
 **daily**
 
-支持每日短期记录。第一版 recall 可以默认读取今天和昨天的 daily 文件。
+Support daily short-term notes. First-version recall can read today's and yesterday's daily files by default.
 
 **project mapping**
 
-支持把当前工作目录映射到 `projects/` 中的项目记忆文件，让 recall 能优先使用当前项目上下文。
+Map the current working directory to a project memory file under `projects/`, so recall can prioritize current project context.
 
-### 6.3 P2：暂缓
+### 6.3 P2: Defer
 
-以下功能不进入第一版核心交付：
+The following are not part of the first core delivery:
 
-- Claude Code hook 自动安装。
-- Codex、Gemini、Cursor adapter。
-- SpecStory `.specstory/history/` 导入。
-- MCP server。
-- 向量检索、SQLite 索引、hybrid search。
-- 自动整理或类似 OpenClaw dreaming 的后台 promotion。
-- Web UI。
-- 团队共享。
-- 官方云同步。
+- Automatic Claude Code hook installation.
+- Codex, Gemini, and Cursor adapters.
+- SpecStory `.specstory/history/` import.
+- MCP server.
+- Vector search, SQLite indexing, or hybrid search.
+- Automatic organization or OpenClaw-like dreaming background promotion.
+- Web UI.
+- Team sharing.
+- Official cloud sync.
 
-这些功能可以进入后续路线图，但不能阻塞 P0。
+These can enter the later roadmap, but they must not block P0.
 
-## 7. 记忆模型
+## 7. Memory Model
 
-Knowblazer 需要分层管理记忆。分层的目的不是增加复杂度，而是防止长期记忆变成杂乱的聊天记录归档。
+Knowblazer needs layered memory management. The purpose of layers is not complexity; it is preventing long-term memory from becoming a messy chat archive.
 
-### 7.1 第一版最小目录
+### 7.1 First-Version Minimal Directory
 
-第一版默认创建以下目录：
+The first version creates this structure by default:
 
 ```text
 knowblazer-notes/
@@ -203,29 +201,29 @@ knowblazer-notes/
 └── recall/
 ```
 
-第一版不默认创建 `relationships/`、`templates/`、`bin/`。这些可以后续增加，避免初始结构过重。
+The first version does not create `relationships/`, `templates/`, or `bin/` by default. These can be added later to avoid making the initial structure too heavy.
 
-### 7.2 分层规则
+### 7.2 Layer Rules
 
-`inbox/` 是原始候选层。AI 会话摘要、SpecStory 导入、本地分析文档、人工临时笔记都先进入这里。默认不参与 recall。
+`inbox/` is the raw candidate layer. AI conversation summaries, SpecStory imports, local analysis documents, and temporary manual notes start here. It is not included in recall by default.
 
-`daily/` 是短期工作层。记录今天做了什么、当前任务状态、临时观察和未整理上下文。recall 可以读取今天和昨天的 daily。
+`daily/` is the short-term working layer. It records what happened today, current task state, temporary observations, and unsorted context. Recall can read today's and yesterday's daily files.
 
-`profile/` 是个人稳定偏好层。保存工程偏好、决策原则、写作风格等高稳定内容。
+`profile/` is the stable personal preference layer. It stores engineering preferences, decision principles, writing style, and other stable information.
 
-`projects/` 是项目长期上下文层。保存项目背景、架构、部署方式、关键目录、操作约束和常见坑。
+`projects/` is the long-term project context layer. It stores project background, architecture, deployment methods, important directories, operational constraints, and common pitfalls.
 
-`experience/` 是可复用工程经验层。保存部署、前端、后端、运维、AI tools 等经验。
+`experience/` is the reusable engineering experience layer. It stores deployment, frontend, backend, operations, AI tools, and similar experience.
 
-`quarantine/` 是敏感信息隔离层。这里的内容不参与 recall，不自动 commit，不自动 push。
+`quarantine/` is the sensitive-content isolation layer. It is never included in recall and is not automatically committed or pushed.
 
-`recall/` 是输出层。保存或临时生成面向具体任务的上下文包。默认可以不纳入 Git。
+`recall/` is the output layer. It stores or temporarily generates task-specific context packs. It can be excluded from Git by default.
 
-### 7.3 提升机制
+### 7.3 Promotion Mechanism
 
-长期记忆不能由 AI 自动无条件写入。
+Long-term memory must not be written by AI automatically and unconditionally.
 
-基础流程：
+Base flow:
 
 ```text
 capture / import
@@ -243,170 +241,170 @@ profile / projects / experience
 recall
 ```
 
-第一版只要求轻量 promotion：移动文件、生成目标路径建议、或修改文档头部状态。后续再考虑自动评分、定期整理和 OpenClaw dreaming 类机制。
+The first version only requires lightweight promotion: move a file, generate a target-path suggestion, or update document status. Automatic scoring, periodic organization, and OpenClaw-like dreaming can be considered later.
 
-## 8. 数据与隐私边界
+## 8. Data and Privacy Boundaries
 
-Knowblazer 必须把数据所有权写成产品原则，而不是实现细节。
+Knowblazer must make data ownership a product principle, not an implementation detail.
 
-### 8.1 用户拥有记忆库
+### 8.1 Users Own Their Memory Repository
 
-用户的工程记忆属于用户。Knowblazer 不拥有、不托管、不默认收集用户的个人工程记忆。
+Engineering memory belongs to the user. Knowblazer does not own, host, or collect a user's personal engineering memory by default.
 
-### 8.2 默认本地保存
+### 8.2 Local Storage by Default
 
-所有 P0 功能都必须在无网络环境下可运行。没有 Git remote、没有官方账号、没有 LLM API，也应该能 init、capture、scan、promote 和 recall。
+All P0 features must run without a network connection. Without a Git remote, official account, or LLM API, users should still be able to init, capture, scan, promote, and recall.
 
-### 8.3 远端由用户选择
+### 8.3 User-Selected Remotes
 
-跨设备同步只能通过用户自己配置的 Git remote 完成。可选远端包括 GitHub private repo、GitLab private repo、自建 Gitea/Forgejo、公司内部 Git、NAS 或个人服务器。
+Cross-device sync can only happen through a Git remote configured by the user. Optional remotes include GitHub private repositories, GitLab private repositories, self-hosted Gitea/Forgejo, internal company Git, NAS, or personal servers.
 
-### 8.4 不做官方托管
+### 8.4 No Official Hosting
 
-第一阶段不提供 Knowblazer Cloud，不提供官方记忆托管服务，也不要求用户登录官方账号。
+The first stage does not provide Knowblazer Cloud, official memory hosting, or an official account requirement.
 
-未来如果出现云服务，也必须是可选增强，不能改变本地优先、用户自有 Git 仓库优先的默认模式。
+If cloud service appears in the future, it must be optional and must not change the default local-first and user-owned Git repository model.
 
-### 8.5 推送前默认扫描
+### 8.5 Scan Before Push
 
-任何自动提交、自动同步或自动推送流程，都必须先执行敏感信息扫描。扫描发现高风险内容时，默认行为是阻止推送，并提示用户查看和处理。
+Any automatic commit, sync, or push flow must scan sensitive information first. If high-risk content is found, the default behavior is to block the push and tell the user to review and handle it.
 
-## 9. Recall 策略
+## 9. Recall Strategy
 
-recall 的目标不是搜索整个知识库，而是为当前 AI Coding 任务生成一份短、准、可读的上下文包。
+The goal of recall is not searching the whole knowledge base. It is generating a short, relevant, readable context pack for the current AI coding task.
 
-第一版 recall 的输入：
+First-version recall input:
 
-- 任务描述，例如 `deploy new frontend`。
-- 当前工作目录。
-- 可选项目名。
+- Task description, such as `deploy new frontend`.
+- Current working directory.
+- Optional project name.
 
-第一版 recall 的候选来源：
+First-version recall candidate sources:
 
-- `profile/` 中稳定且短小的偏好。
-- 当前项目对应的 `projects/` 文件。
-- 与任务关键词匹配的 `experience/`。
-- 今天和昨天的 `daily/`。
+- Stable, short preferences in `profile/`.
+- The current project's file under `projects/`.
+- Task-keyword-matching files under `experience/`.
+- Today's and yesterday's `daily/` files.
 
-默认排除：
+Default exclusions:
 
-- `inbox/`，除非用户显式指定。
-- `quarantine/`，永远不参与默认 recall。
-- `recall/` 历史输出，除非用户显式指定。
+- `inbox/`, unless explicitly requested.
+- `quarantine/`, always excluded from default recall.
+- Historical `recall/` output, unless explicitly requested.
 
-第一版 recall 输出应满足：
+First-version recall output must be:
 
-- 人类可读。
-- 可以直接贴给 Claude Code、Codex、Gemini 或 Cursor。
-- 不包含扫描命中的高风险敏感内容。
-- 默认长度受控，避免把整个记忆库塞进上下文。
+- Human-readable.
+- Directly pasteable into Claude Code, Codex, Gemini, or Cursor.
+- Free of high-risk sensitive content found by scanning.
+- Length-controlled by default, so it does not dump the whole memory repository into context.
 
-## 10. 关键用户流程
+## 10. Key User Flows
 
-### 10.1 首次使用
+### 10.1 First Use
 
-开发者安装 Knowblazer 后，在一个空目录运行 init，得到一个可读、可 Git 管理的记忆库。即使不配置远端仓库，也能继续使用本地功能。
+After installing Knowblazer, a developer runs init in an empty directory and gets a readable, Git-manageable memory repository. Even without a remote repository, local features remain usable.
 
-### 10.2 保存一次真实经验
+### 10.2 Save One Real Lesson
 
-开发者完成一次部署排障后，把总结写成 Markdown。Knowblazer capture 后先 scan。扫描通过则进入 `inbox/`；命中敏感内容则进入 `quarantine/` 并阻止自动提交。
+After finishing deployment debugging, the developer writes a Markdown summary. Knowblazer capture scans it first. If it passes, it enters `inbox/`; if it contains sensitive content, it enters `quarantine/` and automatic commit is blocked.
 
-### 10.3 提升一条长期经验
+### 10.3 Promote One Long-Term Lesson
 
-开发者 review `inbox/` 中的候选内容，把已确认有价值的经验提升到 `experience/deployment/` 或对应项目文件中。
+The developer reviews a candidate in `inbox/` and promotes the useful lesson into `experience/deployment/` or a project-specific file.
 
-### 10.4 为当前任务召回上下文
+### 10.4 Recall Context for the Current Task
 
-开发者准备让 AI 工具处理一个任务。运行 recall 后，Knowblazer 根据 profile、project、experience、daily 生成一份短上下文包。
+Before asking an AI tool to work on a task, the developer runs recall. Knowblazer generates a short context pack from profile, project, experience, and daily notes.
 
-### 10.5 新机器恢复
+### 10.5 Restore on a New Machine
 
-开发者在新电脑上 clone 自己的私有 Knowblazer 记忆库。运行 init 或 doctor 后，AI Coding 工具可以继续读取同一套工程偏好和项目经验。
+On a new computer, the developer clones their private Knowblazer memory repository. After running init or doctor, AI coding tools can continue using the same engineering preferences and project experience.
 
-## 11. 验收标准
+## 11. Acceptance Criteria
 
-P0 版本必须满足以下可测试标准。
+P0 must satisfy the following testable criteria.
 
 ### 11.1 init
 
-- 在空目录运行 init 后，生成第一版最小目录结构。
-- 生成 `AI-SETUP.md`、`system/memory-policy.md`、`system/privacy-policy.md`。
-- 重复运行 init 不应覆盖用户已有记忆内容。
+- Running init in an empty directory creates the first-version minimal structure.
+- It creates `AI-SETUP.md`, `system/memory-policy.md`, and `system/privacy-policy.md`.
+- Re-running init does not overwrite existing user memory.
 
 ### 11.2 capture
 
-- 输入一个 Markdown 文件后，Knowblazer 将其保存到 `inbox/YYYY-MM-DD/`。
-- 保存后的文件保留原始标题或生成可读标题。
-- 保存后的文件包含来源路径和 capture 时间。
+- Given a Markdown file, Knowblazer saves it to `inbox/YYYY-MM-DD/`.
+- The saved file preserves the original title or generates a readable title.
+- The saved file includes source path and capture time.
 
 ### 11.3 scan
 
-- 包含 mock token、mock private key、mock password、mock database URL 的文件会被识别为高风险。
-- 高风险文件不会被自动 commit 或 push。
-- 高风险内容进入 `quarantine/` 或保持本地待处理状态，并给出明确提示。
+- Files containing mock tokens, mock private keys, mock passwords, and mock database URLs are identified as high risk.
+- High-risk files are not automatically committed or pushed.
+- High-risk content enters `quarantine/` or remains local for handling, and the user gets a clear prompt.
 
 ### 11.4 promote
 
-- 用户可以把一条 inbox 记忆提升到 `experience/`、`projects/` 或 `profile/`。
-- promote 后原始文件状态清晰，不会让用户分不清哪些内容已经进入长期记忆。
+- The user can promote an inbox memory into `experience/`, `projects/`, or `profile/`.
+- After promotion, the original file state is clear so users can tell which content entered long-term memory.
 
 ### 11.5 recall
 
-- `recall --task "<task>"` 能生成一份人类可读上下文。
-- 输出包含 profile、当前 project、匹配 experience、近期 daily 中的相关内容。
-- 输出默认不包含 `inbox/` 和 `quarantine/`。
-- 输出长度受控，不应简单拼接整个仓库。
+- `recall --task "<task>"` generates human-readable context.
+- Output includes relevant profile, current project, matching experience, and recent daily notes.
+- Output does not include `inbox/` or `quarantine/` by default.
+- Output is length-controlled and does not simply concatenate the whole repository.
 
-### 11.6 本地优先
+### 11.6 Local-First
 
-- 在无网络环境下，P0 功能可运行。
-- 不配置 Knowblazer 官方账号也能完整使用 P0。
-- 不配置 Git remote 也能 init、capture、scan、promote 和 recall。
+- P0 features run without a network connection.
+- P0 works without configuring an official Knowblazer account.
+- P0 works without configuring a Git remote.
 
-## 12. 风险与反指标
+## 12. Risks and Counter-Metrics
 
-下面这些现象说明产品方向或设计需要调整。
+These signals indicate that product direction or design may need adjustment:
 
-- 用户只把 Knowblazer 当备份脚本，从不使用 recall。
-- `inbox/` 很快堆积，但用户没有 review 和 promote。
-- 目录结构让用户困惑，不知道内容应该放在哪里。
-- scan 误报太多，导致用户关闭或绕过扫描。
-- recall 输出太长，AI 工具仍然抓不到重点。
-- recall 输出太泛，不能减少用户重复解释项目背景。
-- 用户担心隐私，误以为 Knowblazer 会上传数据到官方服务。
-- 用户认为 SpecStory 已经完全覆盖 Knowblazer 的价值。
+- Users treat Knowblazer only as a backup script and never use recall.
+- `inbox/` grows quickly, but users never review or promote.
+- The directory structure confuses users.
+- Scan false positives are so frequent that users disable or bypass scanning.
+- Recall output is too long and AI tools still miss the point.
+- Recall output is too generic and does not reduce repeated explanation.
+- Users worry about privacy because they mistakenly think Knowblazer uploads data to an official service.
+- Users believe SpecStory already fully covers Knowblazer's value.
 
-## 13. 明确不做
+## 13. Explicitly Not Doing
 
-第一阶段明确不做：
+The first stage explicitly does not do:
 
-- 官方云同步。
-- 官方记忆托管。
-- 团队知识库协作。
-- Web UI。
-- 完整 AI 对话记录器。
-- IDE 插件。
-- 通用 memory server。
-- 默认 MCP server。
-- 向量数据库。
-- 自动理解并整理所有历史聊天。
-- 自动生成高质量长期记忆。
+- Official cloud sync.
+- Official memory hosting.
+- Team knowledge base collaboration.
+- Web UI.
+- Full AI conversation recording.
+- IDE plugin.
+- Generic memory server.
+- Default MCP server.
+- Vector database.
+- Automatic understanding and organization of all historical chats.
+- Automatic generation of high-quality long-term memory.
 
-## 14. 后续路线图
+## 14. Later Roadmap
 
-P0 跑通后，可以考虑：
+After P0 works, consider:
 
-- Codex、Claude Code、Gemini、Cursor adapter。
-- SpecStory `.specstory/history/` 导入。
-- Git sync helper。
-- 更智能的 project mapping。
-- 可选 SQLite 或向量索引。
-- MCP server。
-- 类似 OpenClaw dreaming 的定期整理机制，但必须可 review、可回滚。
-- 自托管同步服务或加密备份。
+- Codex, Claude Code, Gemini, and Cursor adapters.
+- SpecStory `.specstory/history/` import.
+- Git sync helper.
+- Smarter project mapping.
+- Optional SQLite or vector indexing.
+- MCP server.
+- OpenClaw-like periodic organization, but only if it is reviewable and reversible.
+- Self-hosted sync service or encrypted backup.
 
-这些扩展不能改变第一原则：用户自己的私有 Git 工程记忆库是主存储，Knowblazer 官方不托管用户记忆。
+These extensions must not change the first principle: the user's own private Git engineering memory repository is the primary storage, and Knowblazer does not host user memory officially.
 
-## 15. 一句话总结
+## 15. One-Sentence Summary
 
-Knowblazer 要做的不是保存所有 AI 对话，也不是托管用户数据，而是帮助开发者把重要的工程经验维护在自己的私有 Git 仓库中，形成可迁移、可审计、可召回的长期工程记忆。
+Knowblazer is not about saving every AI conversation or hosting user data. It helps developers maintain important engineering experience in their own private Git repository, making it portable, auditable, and recallable as long-term engineering memory.
