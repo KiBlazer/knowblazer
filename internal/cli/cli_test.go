@@ -86,6 +86,25 @@ func TestRunDoctorReturnsOneForFailures(t *testing.T) {
 	}
 }
 
+func TestRunInitUsesDefaultHomePath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	code := Run([]string{"init"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
+	}
+	root := filepath.Join(home, "knowblazer-notes")
+	if _, err := os.Stat(filepath.Join(root, ".knowblazer", "config.json")); err != nil {
+		t.Fatalf("expected default config to exist: %v", err)
+	}
+	if !strings.Contains(stdout.String(), root) {
+		t.Fatalf("stdout missing default path: %s", stdout.String())
+	}
+}
+
 func TestRunInitCreatesRepoAndPrintsNextSteps(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var stdout bytes.Buffer
@@ -158,6 +177,23 @@ func TestRunScanPrintsCleanSummary(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := Run([]string{"scan", file}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Summary: clean, 0 findings, 0 high-risk") {
+		t.Fatalf("stdout missing clean summary: %s", stdout.String())
+	}
+}
+
+func TestRunScanAcceptsRepoFlagForSpecCompatibility(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "lesson.md")
+	if err := os.WriteFile(file, []byte("# Lesson\n\nNo secrets here.\n"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"scan", file, "--repo", t.TempDir()}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
 	}
@@ -243,6 +279,33 @@ func TestRunPromoteUsesRepoAndTargetFlags(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Promoted to:") {
 		t.Fatalf("stdout missing promote message: %s", stdout.String())
+	}
+}
+
+func TestRunRecallWritesOutputFile(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	output := filepath.Join(t.TempDir(), "recall.md")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"recall", "--task", "deploy frontend", "--repo", root, "--output", output}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
+	}
+	content, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	if !strings.Contains(string(content), "# Knowblazer Recall Pack") {
+		t.Fatalf("output missing recall pack: %s", content)
+	}
+	if !strings.Contains(stdout.String(), "Recall pack written to:") {
+		t.Fatalf("stdout missing output message: %s", stdout.String())
 	}
 }
 

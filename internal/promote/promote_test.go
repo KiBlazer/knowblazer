@@ -79,6 +79,29 @@ func TestPromoteRejectsPathEscape(t *testing.T) {
 	}
 }
 
+func TestPromoteRejectsSymlinkEscape(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatalf("mkdir outside: %v", err)
+	}
+	link := filepath.Join(root, "experience", "outside-link")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatalf("symlink outside: %v", err)
+	}
+	source := filepath.Join(root, "inbox", "note.md")
+	if err := os.WriteFile(source, []byte("# Note\n\nNo secrets.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	if _, err := File(root, source, "experience/outside-link"); err == nil {
+		t.Fatal("File() error = nil, want symlink escape error")
+	}
+}
+
 func TestPromoteUpdatesExistingStatusFieldOnce(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	if err := repo.Init(root); err != nil {

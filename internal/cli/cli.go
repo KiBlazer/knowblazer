@@ -186,9 +186,16 @@ func runCapture(args []string, stdout io.Writer, stderr io.Writer) int {
 }
 
 func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer scan <path>")
+	if len(args) != 1 && len(args) != 3 {
+		fmt.Fprintln(stderr, "usage: knowblazer scan <path> [--repo <path>]")
 		return 2
+	}
+	if len(args) == 3 {
+		repoRoot, ok := valueForFlag(args[1:], "--repo")
+		if !ok || repoRoot == "" {
+			fmt.Fprintln(stderr, "usage: knowblazer scan <path> [--repo <path>]")
+			return 2
+		}
 	}
 
 	result, err := scan.Path(args[0])
@@ -221,12 +228,15 @@ func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
 }
 
 func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer init <path>")
+	if len(args) > 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer init [path]")
 		return 2
 	}
 
-	root := args[0]
+	root := filepath.Join(os.Getenv("HOME"), "knowblazer-notes")
+	if len(args) == 1 {
+		root = args[0]
+	}
 	if err := repo.Init(root); err != nil {
 		fmt.Fprintf(stderr, "init failed: %v\n", err)
 		return 1
@@ -244,8 +254,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "usage: knowblazer <command> [args]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "commands:")
-	fmt.Fprintln(w, "  init <path>    initialize a Knowblazer memory repo")
-	fmt.Fprintln(w, "  scan <path>    scan a file or directory for sensitive content")
+	fmt.Fprintln(w, "  init [path]    initialize a Knowblazer memory repo")
+	fmt.Fprintln(w, "  scan <path> [--repo <path>]    scan a file or directory for sensitive content")
 	fmt.Fprintln(w, "  doctor [--repo <path>]")
 	fmt.Fprintln(w, "  capture <file> --repo <path>")
 	fmt.Fprintln(w, "  promote <file> --to <target> --repo <path>")

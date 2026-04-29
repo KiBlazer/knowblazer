@@ -71,11 +71,18 @@ func safeTargetDir(repoRoot string, target string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	rootReal, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return "", err
+	}
 	targetAbs, err := filepath.Abs(filepath.Join(repoRoot, cleanTarget))
 	if err != nil {
 		return "", err
 	}
-	rel, err := filepath.Rel(rootAbs, targetAbs)
+	if err := ensureNoSymlinkEscape(rootReal, targetAbs); err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(rootReal, targetAbs)
 	if err != nil {
 		return "", err
 	}
@@ -83,6 +90,31 @@ func safeTargetDir(repoRoot string, target string) (string, error) {
 		return "", fmt.Errorf("target path is outside the Knowblazer repo and is not allowed")
 	}
 	return targetAbs, nil
+}
+
+func ensureNoSymlinkEscape(rootReal string, targetAbs string) error {
+	current := filepath.Clean(targetAbs)
+	for {
+		if info, err := os.Lstat(current); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			resolved, err := filepath.EvalSymlinks(current)
+			if err != nil {
+				return err
+			}
+			rel, err := filepath.Rel(rootReal, resolved)
+			if err != nil {
+				return err
+			}
+			if strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+				return fmt.Errorf("target path is outside the Knowblazer repo and is not allowed")
+			}
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
+	return nil
 }
 
 func markPromoted(content []byte, target string, promotedAt time.Time) []byte {

@@ -1,6 +1,7 @@
 package recall
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,34 @@ func TestGenerateIncludesRelevantMemoryAndExcludesInboxAndQuarantine(t *testing.
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("recall pack included unwanted %q:\n%s", unwanted, text)
 		}
+	}
+}
+
+func TestGenerateLimitsTotalOutputSize(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	large := strings.Repeat("deploy ", 6000)
+	if err := os.WriteFile(filepath.Join(root, "profile", "preferences.md"), []byte(large), 0o644); err != nil {
+		t.Fatalf("write preferences: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		path := filepath.Join(root, "experience", "deployment", fmt.Sprintf("deploy-%d.md", i))
+		if err := os.WriteFile(path, []byte(large), 0o644); err != nil {
+			t.Fatalf("write experience: %v", err)
+		}
+	}
+
+	pack, err := Generate(root, Options{Task: "deploy"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if len(pack) > maxPackBytes {
+		t.Fatalf("pack len = %d, want <= %d", len(pack), maxPackBytes)
+	}
+	if !strings.Contains(string(pack), "[truncated]") {
+		t.Fatalf("pack missing truncation marker")
 	}
 }
 

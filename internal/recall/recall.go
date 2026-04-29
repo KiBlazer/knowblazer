@@ -12,6 +12,8 @@ import (
 	"unicode"
 )
 
+const maxPackBytes = 20 * 1024
+
 type Options struct {
 	Task    string
 	Project string
@@ -49,7 +51,7 @@ func Generate(repoRoot string, opts Options) ([]byte, error) {
 	fmt.Fprintln(&out)
 	fmt.Fprintln(&out, "- This pack excludes inbox and quarantine by default.")
 	fmt.Fprintln(&out, "- Verify commands and secrets before running anything.")
-	return out.Bytes(), nil
+	return limitBytes(out.Bytes(), maxPackBytes), nil
 }
 
 func writeSection(out *bytes.Buffer, title string, parts []string) {
@@ -162,4 +164,18 @@ func limitString(value string, max int) string {
 		return value
 	}
 	return value[:max] + "\n\n[truncated]"
+}
+
+func limitBytes(value []byte, max int) []byte {
+	if len(value) <= max {
+		return value
+	}
+	truncated := []byte("\n\n[truncated]")
+	if max <= len(truncated) {
+		return value[:max]
+	}
+	out := make([]byte, max)
+	copy(out, value[:max-len(truncated)])
+	copy(out[max-len(truncated):], truncated)
+	return out
 }
