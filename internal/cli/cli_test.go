@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
-func TestRunHelpIncludesDoctor(t *testing.T) {
+func TestRunHelpIncludesCoreWorkflow(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
@@ -17,8 +18,56 @@ func TestRunHelpIncludesDoctor(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("help code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "doctor [--repo <path>]") {
-		t.Fatalf("stdout missing doctor usage: %s", stdout.String())
+	out := stdout.String()
+	for _, want := range []string{"Core workflow:", "start [--repo <path>]", "remember <file|text>", "recall <task>", "Advanced commands:", "setup claude"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stdout missing %q: %s", want, out)
+		}
+	}
+}
+
+func TestRunStartAndStatusUseClaudeFirstDefaults(t *testing.T) {
+	home := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "kiblazer")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	t.Setenv("HOME", home)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"start", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("start code = %d, stderr = %s", code, stderr.String())
+	}
+	root := filepath.Join(home, "knowblazer-notes")
+	if _, err := os.Stat(filepath.Join(root, ".knowblazer", "config.json")); err != nil {
+		t.Fatalf("expected default repo config: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "projects", "kiblazer.md")); err != nil {
+		t.Fatalf("expected inferred project file: %v", err)
+	}
+	claudeMD := filepath.Join(workspace, "CLAUDE.md")
+	content, err := os.ReadFile(claudeMD)
+	if err != nil {
+		t.Fatalf("read CLAUDE.md: %v", err)
+	}
+	if !strings.Contains(string(content), "knowblazer_context") {
+		t.Fatalf("CLAUDE.md missing context tool instructions:\n%s", content)
+	}
+	if !strings.Contains(stdout.String(), "Next: run `claude`") {
+		t.Fatalf("start output missing next step: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"status", "--repo", root, "--path", workspace}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("status code = %d, stderr = %s", code, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "Project: kiblazer") || !strings.Contains(out, "Claude instructions:") {
+		t.Fatalf("status output missing setup details: %s", out)
 	}
 }
 
@@ -332,6 +381,59 @@ func TestRunAdapterImportAndIndex(t *testing.T) {
 	}
 }
 
+func TestRunRememberTextAndPositionalRecall(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"remember", "Deploys", "need", "smoke", "tests", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("remember code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Remembered to inbox:") {
+		t.Fatalf("remember output missing inbox path: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"recall", "deploy", "smoke", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Knowblazer Recall Pack") {
+		t.Fatalf("recall output missing pack: %s", stdout.String())
+	}
+}
+
+func TestRunRememberDaily(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"remember", "finished", "deploy", "--daily", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("remember daily code = %d, stderr = %s", code, stderr.String())
+	}
+	content, err := os.ReadFile(filepath.Join(root, "daily", dailyFileName()))
+	if err != nil {
+		t.Fatalf("read daily note: %v", err)
+	}
+	if strings.Contains(string(content), root) {
+		t.Fatalf("daily text included --repo value: %s", content)
+	}
+}
+
+func dailyFileName() string {
+	return time.Now().Format("2006-01-02") + ".md"
+}
+
 func TestRunDailyAddAndShow(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
@@ -352,6 +454,47 @@ func TestRunDailyAddAndShow(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "finished deploy") {
 		t.Fatalf("daily show missing entry: %s", stdout.String())
+	}
+}
+
+func TestRunSetupClaudeUpdatesProject(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"setup", "claude", "--repo", root, "--path", workspace, "--project", "kiblazer", "--skip-mcp"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
+	}
+	claudeMD := filepath.Join(workspace, "CLAUDE.md")
+	content, err := os.ReadFile(claudeMD)
+	if err != nil {
+		t.Fatalf("read CLAUDE.md: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "KNOWBLAZER-CLAUDE-SETUP:START") || !strings.Contains(text, root) {
+		t.Fatalf("CLAUDE.md missing Knowblazer instructions:\n%s", text)
+	}
+	if !strings.Contains(stdout.String(), "Claude Code integration ready.") {
+		t.Fatalf("setup output missing ready message: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"project", "show", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("project show code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "kiblazer") || !strings.Contains(stdout.String(), workspace) {
+		t.Fatalf("project mapping missing: %s", stdout.String())
 	}
 }
 
@@ -421,6 +564,28 @@ func TestRunSyncStatus(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "projects/") {
 		t.Fatalf("sync status missing projects directory: %s", stdout.String())
+	}
+}
+
+func TestRunSyncDefaultsToStatus(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+	runTestGit(t, root, "init")
+	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
+		t.Fatalf("write project: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"sync", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("sync default code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "projects/") {
+		t.Fatalf("sync default missing projects directory: %s", stdout.String())
 	}
 }
 

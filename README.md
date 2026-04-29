@@ -51,14 +51,38 @@ For local development from this repository:
 make install
 ```
 
+## Quick Start
+
+Claude Code is the default product path:
+
+```bash
+cd /path/to/project
+knowblazer start
+claude
+```
+
+`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, writes `CLAUDE.md`, and connects Claude Code through MCP. After that, Claude can call Knowblazer for context automatically.
+
+Daily use:
+
+```bash
+knowblazer remember "Deploys need smoke tests"
+knowblazer status
+knowblazer sync
+```
+
+Use `remember` for lessons worth keeping, `status` to check the integration, and `sync` only when you choose to commit or push your private memory repo.
+
 ## MVP Flow
 
-The first version focuses on one path:
+The underlying local-first flow remains:
 
 ```text
-init a private memory repo
+start from a project directory
   ↓
-capture one Markdown lesson
+connect Claude Code to private memory
+  ↓
+remember useful lessons
   ↓
 scan for secrets
   ↓
@@ -66,34 +90,31 @@ store in inbox or quarantine
   ↓
 promote reviewed memory
   ↓
-generate a recall pack for an AI coding task
+recall task context while coding
 ```
 
-P0 commands:
+Core commands:
+
+```bash
+knowblazer start
+knowblazer remember ./deploy-lesson.md
+knowblazer recall "deploy new frontend"
+knowblazer status
+knowblazer sync
+```
+
+Advanced commands:
 
 ```bash
 knowblazer init ~/knowblazer-notes
+knowblazer setup claude --repo ~/knowblazer-notes --project my-project --path .
 knowblazer doctor --repo ~/knowblazer-notes
-knowblazer capture ./deploy-lesson.md --repo ~/knowblazer-notes
 knowblazer scan ~/knowblazer-notes
-knowblazer promote inbox/2026-04-29/deploy-lesson.md --to experience/deployment --repo ~/knowblazer-notes
-knowblazer recall --task "deploy new frontend" --project my-project --repo ~/knowblazer-notes
-```
-
-Roadmap commands:
-
-```bash
-knowblazer daily add "fixed flaky deploy" --repo ~/knowblazer-notes
-knowblazer daily show --repo ~/knowblazer-notes
-knowblazer project set my-project --path ~/work/my-project --repo ~/knowblazer-notes
-knowblazer sync status --repo ~/knowblazer-notes
-knowblazer import specstory .specstory/history --repo ~/knowblazer-notes
-knowblazer adapter claude --repo ~/knowblazer-notes
-knowblazer index build --repo ~/knowblazer-notes
-knowblazer index search deploy rollback --repo ~/knowblazer-notes
-knowblazer mcp serve --repo ~/knowblazer-notes
 knowblazer review list --repo ~/knowblazer-notes
-knowblazer dream --repo ~/knowblazer-notes
+knowblazer review promote inbox/2026-04-29/deploy-lesson.md --to experience/deployment --repo ~/knowblazer-notes
+knowblazer daily add "fixed flaky deploy" --repo ~/knowblazer-notes
+knowblazer project set my-project --path ~/work/my-project --repo ~/knowblazer-notes
+knowblazer import specstory .specstory/history --repo ~/knowblazer-notes
 knowblazer backup create --repo ~/knowblazer-notes --output knowblazer-backup.tgz
 ```
 

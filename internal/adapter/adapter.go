@@ -8,11 +8,15 @@ import (
 var supported = map[string]string{
 	"claude": `# Claude Code Knowblazer Adapter
 
-Before starting a task, run:
+Recommended one-command setup:
+
+    knowblazer setup claude --repo "<repo>"
+
+This configures Claude Code MCP and writes project instructions. If MCP is unavailable, fall back to:
 
     knowblazer recall --task "<task>" --repo "<repo>"
 
-Paste the recall pack into the coding session. Do not include quarantine content.
+Use the recall pack as task context. Do not include quarantine content.
 `,
 	"codex": `# Codex Knowblazer Adapter
 

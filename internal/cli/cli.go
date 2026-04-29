@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/knowblazer/knowblazer/internal/repo"
 	"github.com/knowblazer/knowblazer/internal/review"
 	"github.com/knowblazer/knowblazer/internal/scan"
+	"github.com/knowblazer/knowblazer/internal/setup"
 	ksync "github.com/knowblazer/knowblazer/internal/sync"
 )
 
@@ -34,6 +36,10 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	switch args[0] {
 	case "init":
 		return runInit(args[1:], stdout, stderr)
+	case "start":
+		return runStart(args[1:], stdout, stderr)
+	case "status":
+		return runStatus(args[1:], stdout, stderr)
 	case "adapter":
 		return runAdapter(args[1:], stdout, stderr)
 	case "backup":
@@ -46,10 +52,14 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runIndex(args[1:], stdout, stderr)
 	case "mcp":
 		return runMCP(args[1:], stdout, stderr)
+	case "remember":
+		return runRemember(args[1:], stdout, stderr)
 	case "review":
 		return runReview(args[1:], stdout, stderr)
 	case "scan":
 		return runScan(args[1:], stdout, stderr)
+	case "setup":
+		return runSetup(args[1:], stdout, stderr)
 	case "capture":
 		return runCapture(args[1:], stdout, stderr)
 	case "daily":
@@ -72,6 +82,130 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		printUsage(stderr)
 		return 2
 	}
+}
+
+func runStart(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForStart(args)
+	if err != nil {
+		fmt.Fprintf(stderr, "start failed: %v\n", err)
+		return 1
+	}
+	workspace := flagValue(args, "--path")
+	if workspace == "" {
+		workspace, err = os.Getwd()
+		if err != nil {
+			fmt.Fprintf(stderr, "start failed: %v\n", err)
+			return 1
+		}
+	}
+	project := flagValue(args, "--project")
+	if project == "" {
+		project = inferProjectName(workspace)
+	}
+	result, err := setup.Claude(setup.ClaudeOptions{
+		RepoRoot:      repoRoot,
+		Workspace:     workspace,
+		Project:       project,
+		Scope:         flagValue(args, "--scope"),
+		SkipMCP:       hasFlag(args, "--skip-mcp"),
+		EnsureProject: true,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "start failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, "Knowblazer is ready for Claude Code in this project.")
+	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+	fmt.Fprintf(stdout, "Project: %s\n", project)
+	fmt.Fprintf(stdout, "Claude instructions: %s\n", result.ClaudeMD)
+	if result.MCPConfigured {
+		fmt.Fprintln(stdout, "Claude Code MCP configured: knowblazer")
+	} else if result.MCPSkipped {
+		fmt.Fprintln(stdout, "Claude Code MCP skipped")
+	} else {
+		fmt.Fprintln(stdout, "Claude Code MCP already configured: knowblazer")
+	}
+	fmt.Fprintln(stdout, "Next: run `claude` from this project.")
+	return 0
+}
+
+func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	workspace := flagValue(args, "--path")
+	if workspace == "" {
+		workspace, _ = os.Getwd()
+	}
+	project := ""
+	if workspace != "" {
+		if mapped, ok, err := projectmap.Resolve(repoRoot, workspace); err == nil && ok {
+			project = mapped
+		}
+	}
+	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+	if project != "" {
+		fmt.Fprintf(stdout, "Project: %s\n", project)
+	} else {
+		fmt.Fprintln(stdout, "Project: not mapped")
+	}
+	claudeMD := ""
+	if workspace != "" {
+		claudeMD = filepath.Join(workspace, "CLAUDE.md")
+	}
+	if claudeMD != "" {
+		if content, err := os.ReadFile(claudeMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-CLAUDE-SETUP:START") {
+			fmt.Fprintf(stdout, "Claude instructions: %s\n", claudeMD)
+		} else {
+			fmt.Fprintln(stdout, "Claude instructions: not configured")
+		}
+	}
+	candidates, err := review.List(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "status failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Inbox candidates: %d\n", len(candidates))
+	return 0
+}
+
+func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 || args[0] != "claude" {
+		fmt.Fprintln(stderr, "usage: knowblazer setup claude [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	workspace := flagValue(args[1:], "--path")
+	project := flagValue(args[1:], "--project")
+	scope := flagValue(args[1:], "--scope")
+	result, err := setup.Claude(setup.ClaudeOptions{
+		RepoRoot:  repoRoot,
+		Workspace: workspace,
+		Project:   project,
+		Scope:     scope,
+		SkipMCP:   hasFlag(args[1:], "--skip-mcp"),
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "setup claude failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Claude instructions updated: %s\n", result.ClaudeMD)
+	if result.ProjectMapped {
+		fmt.Fprintf(stdout, "Project mapping configured: %s\n", project)
+	}
+	if result.MCPConfigured {
+		fmt.Fprintln(stdout, "Claude Code MCP configured: knowblazer")
+	} else if result.MCPSkipped {
+		fmt.Fprintln(stdout, "Claude Code MCP skipped")
+	}
+	fmt.Fprintln(stdout, "Claude Code integration ready.")
+	return 0
 }
 
 func runBackup(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -147,6 +281,66 @@ func runMCP(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(nonFlagArgs(args)) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer remember <file|text> [--repo <path>] [--daily]")
+		return 2
+	}
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	text := strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
+	if hasFlag(args, "--daily") {
+		path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
+		if err != nil {
+			fmt.Fprintf(stderr, "remember daily failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Remembered in daily notes: %s\n", path)
+		return 0
+	}
+	if info, err := os.Stat(text); err == nil && !info.IsDir() {
+		return runCapture(args, stdout, stderr)
+	}
+	path, err := rememberText(repoRoot, text)
+	if err != nil {
+		fmt.Fprintf(stderr, "remember failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "Remembered to inbox: %s\n", path)
+	fmt.Fprintln(stdout, "Review with: knowblazer review list")
+	return 0
+}
+
+func rememberText(repoRoot string, text string) (string, error) {
+	if text == "" {
+		return "", fmt.Errorf("memory text is empty")
+	}
+	file, err := os.CreateTemp("", "knowblazer-remember-*.md")
+	if err != nil {
+		return "", err
+	}
+	name := file.Name()
+	defer os.Remove(name)
+	if _, err := fmt.Fprintf(file, "# Memory\n\n%s\n", text); err != nil {
+		file.Close()
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+	result, err := capture.Markdown(repoRoot, name)
+	if err != nil {
+		return "", err
+	}
+	if result.ScanLevel == scan.High {
+		return "", fmt.Errorf("sensitive content detected; saved to quarantine: %s", result.Path)
+	}
+	return result.Path, nil
 }
 
 func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -378,23 +572,25 @@ func runProject(args []string, stdout io.Writer, stderr io.Writer) int {
 }
 
 func runSync(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer sync <status|commit|push|pull> [--repo <path>] [--message <text>]")
-		return 2
+	command := "status"
+	repoArgs := args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		command = args[0]
+		repoArgs = args[1:]
 	}
-	repoRoot, err := repoForArgs(args[1:])
+	repoRoot, err := repoForArgs(repoArgs)
 	if err != nil {
 		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	var result ksync.Result
-	switch args[0] {
+	switch command {
 	case "status":
 		result, err = ksync.Status(repoRoot)
 	case "commit":
-		message := flagValue(args[1:], "--message")
+		message := flagValue(repoArgs, "--message")
 		if message == "" {
-			message = flagValue(args[1:], "-m")
+			message = flagValue(repoArgs, "-m")
 		}
 		result, err = ksync.Commit(repoRoot, message)
 	case "push":
@@ -402,7 +598,7 @@ func runSync(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "pull":
 		result, err = ksync.Pull(repoRoot)
 	default:
-		fmt.Fprintln(stderr, "usage: knowblazer sync <status|commit|push|pull> [--repo <path>] [--message <text>]")
+		fmt.Fprintln(stderr, "usage: knowblazer sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
 		return 2
 	}
 	if err != nil {
@@ -448,7 +644,10 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
 func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 	task, ok := valueForFlag(args, "--task")
 	if !ok || task == "" {
-		fmt.Fprintln(stderr, "recall requires --task <text>")
+		task = strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
+	}
+	if task == "" {
+		fmt.Fprintln(stderr, "usage: knowblazer recall <task> [--repo <path>] [--project <name>] [--output <file>]")
 		return 2
 	}
 	repoRoot, ok := valueForFlag(args, "--repo")
@@ -633,23 +832,30 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "usage: knowblazer <command> [args]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "commands:")
-	fmt.Fprintln(w, "  init [path]    initialize a Knowblazer memory repo")
-	fmt.Fprintln(w, "  scan <path> [--repo <path>]    scan a file or directory for sensitive content")
-	fmt.Fprintln(w, "  adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
-	fmt.Fprintln(w, "  backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
-	fmt.Fprintln(w, "  dream [--repo <path>]")
-	fmt.Fprintln(w, "  import specstory <path> [--repo <path>]")
-	fmt.Fprintln(w, "  index <build|search> [query] [--repo <path>]")
-	fmt.Fprintln(w, "  mcp serve [--repo <path>]")
+	fmt.Fprintln(w, "Core workflow:")
+	fmt.Fprintln(w, "  start [--repo <path>] [--path <dir>] [--skip-mcp]")
+	fmt.Fprintln(w, "  remember <file|text> [--repo <path>] [--daily]")
+	fmt.Fprintln(w, "  recall <task> [--repo <path>] [--project <name>] [--output <file>]")
+	fmt.Fprintln(w, "  status [--repo <path>] [--path <dir>]")
+	fmt.Fprintln(w, "  sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Review and maintenance:")
 	fmt.Fprintln(w, "  review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
-	fmt.Fprintln(w, "  daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
 	fmt.Fprintln(w, "  doctor [--repo <path>]")
-	fmt.Fprintln(w, "  project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
-	fmt.Fprintln(w, "  sync <status|commit|push|pull> [--repo <path>] [--message <text>]")
+	fmt.Fprintln(w, "  backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Advanced commands:")
+	fmt.Fprintln(w, "  setup claude [--repo <path>] [--project <name>] [--path <dir>]")
+	fmt.Fprintln(w, "  scan <path> [--repo <path>]")
 	fmt.Fprintln(w, "  capture <file> --repo <path>")
 	fmt.Fprintln(w, "  promote <file> --to <target> --repo <path>")
-	fmt.Fprintln(w, "  recall --task <text> --repo <path> [--project <name>] [--output <file>]")
+	fmt.Fprintln(w, "  daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
+	fmt.Fprintln(w, "  project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
+	fmt.Fprintln(w, "  import specstory <path> [--repo <path>]")
+	fmt.Fprintln(w, "  adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
+	fmt.Fprintln(w, "  index <build|search> [query] [--repo <path>]")
+	fmt.Fprintln(w, "  mcp serve [--repo <path>]")
+	fmt.Fprintln(w, "  dream [--repo <path>]")
 }
 
 func levelString(level scan.Level) string {
@@ -705,13 +911,79 @@ func flagValue(args []string, name string) string {
 func nonFlagArgs(args []string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
-		if strings.HasPrefix(args[i], "-") {
-			i++
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			if strings.Contains(arg, "=") {
+				continue
+			}
+			if flagTakesValue(arg) && i+1 < len(args) {
+				i++
+			}
 			continue
 		}
-		out = append(out, args[i])
+		out = append(out, arg)
 	}
 	return out
+}
+
+func hasFlag(args []string, name string) bool {
+	for _, arg := range args {
+		if arg == name {
+			return true
+		}
+	}
+	return false
+}
+
+func repoForStart(args []string) (string, error) {
+	repoRoot := flagValue(args, "--repo")
+	if repoRoot == "" {
+		repoRoot = os.Getenv("KNOWBLAZER_REPO")
+	}
+	if repoRoot == "" {
+		repoRoot = filepath.Join(os.Getenv("HOME"), "knowblazer-notes")
+	}
+	if err := repo.Init(repoRoot); err != nil {
+		return "", err
+	}
+	if err := repo.MustBeRepo(repoRoot); err != nil {
+		return "", err
+	}
+	return repoRoot, nil
+}
+
+func inferProjectName(workspace string) string {
+	if root, ok := gitRoot(workspace); ok {
+		return filepath.Base(root)
+	}
+	abs, err := filepath.Abs(workspace)
+	if err != nil {
+		return filepath.Base(filepath.Clean(workspace))
+	}
+	return filepath.Base(abs)
+}
+
+func gitRoot(workspace string) (string, bool) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = filepath.Clean(workspace)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+	root := strings.TrimSpace(string(output))
+	if root == "" {
+		return "", false
+	}
+	return root, true
+}
+
+func flagTakesValue(name string) bool {
+	switch name {
+	case "--daily", "--skip-mcp":
+		return false
+	default:
+		return true
+	}
 }
 
 func discoverRepo() (string, error) {
