@@ -193,7 +193,7 @@ func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	workspace := flagValue(args[1:], "--path")
@@ -233,7 +233,7 @@ func runBackup(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "create":
 		repoRoot, err := repoForArgs(args[1:])
 		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 			return 2
 		}
 		output := flagValue(args[1:], "--output")
@@ -269,7 +269,7 @@ func runBackup(args []string, stdout io.Writer, stderr io.Writer) int {
 func runDream(args []string, stdout io.Writer, stderr io.Writer) int {
 	repoRoot, err := repoForArgs(args)
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	path, err := dream.Run(repoRoot)
@@ -288,7 +288,7 @@ func runMCP(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	if err := mcp.Serve(repoRoot, os.Stdin, stdout); err != nil {
@@ -305,7 +305,7 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args)
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	text := strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
@@ -388,7 +388,7 @@ func rememberText(repoRoot string, text string) (string, error) {
 func runConsolidate(args []string, stdout io.Writer, stderr io.Writer) int {
 	repoRoot, err := repoForArgs(args)
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	result, err := consolidate.Run(repoRoot)
@@ -411,7 +411,7 @@ func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	switch args[0] {
@@ -465,7 +465,7 @@ func runAdapter(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	content, err := adapter.Generate(args[0], repoRoot)
@@ -493,7 +493,7 @@ func runImport(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[2:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	results, err := specstory.Import(repoRoot, args[1])
@@ -514,7 +514,7 @@ func runIndex(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	switch args[0] {
@@ -550,7 +550,7 @@ func runDaily(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	switch args[0] {
@@ -589,7 +589,7 @@ func runProject(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(args[1:])
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	workspace := flagValue(args[1:], "--path")
@@ -641,7 +641,7 @@ func runSync(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 	repoRoot, err := repoForArgs(repoArgs)
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 	var result ksync.Result
@@ -687,7 +687,7 @@ func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
 		var err error
 		repoRoot, err = discoverRepo()
 		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 			return 2
 		}
 	}
@@ -716,7 +716,7 @@ func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 		var err error
 		repoRoot, err = discoverRepo()
 		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 			return 2
 		}
 	}
@@ -768,7 +768,7 @@ func runPromote(args []string, stdout io.Writer, stderr io.Writer) int {
 		var err error
 		repoRoot, err = discoverRepo()
 		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 			return 2
 		}
 	}
@@ -798,7 +798,7 @@ func runCapture(args []string, stdout io.Writer, stderr io.Writer) int {
 		var err error
 		repoRoot, err = discoverRepo()
 		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 			return 2
 		}
 	}
@@ -884,40 +884,21 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	fmt.Fprintf(stdout, "Initialized Knowblazer memory repo: %s\n", root)
 	fmt.Fprintln(stdout, "Next steps:")
-	fmt.Fprintf(stdout, "  1. Capture fresh memory with: knowblazer remember \"<lesson>\" --repo %s\n", root)
-	fmt.Fprintf(stdout, "  2. Consolidate fresh memory with: knowblazer consolidate --repo %s\n", root)
-	fmt.Fprintf(stdout, "  3. Generate dynamic context with: knowblazer recall --task \"<task>\" --repo %s\n", root)
+	fmt.Fprintf(stdout, "  1. Capture memory with: knowblazer remember \"<lesson>\" --repo %s\n", root)
+	fmt.Fprintf(stdout, "  2. Generate context with: knowblazer recall \"<task>\" --repo %s\n", root)
+	fmt.Fprintf(stdout, "  3. Check sync status with: knowblazer sync status --repo %s\n", root)
 	return 0
 }
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "usage: knowblazer <command> [args]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Core workflow:")
+	fmt.Fprintln(w, "Common commands:")
 	fmt.Fprintln(w, "  start [--repo <path>] [--path <dir>] [--skip-mcp]")
 	fmt.Fprintln(w, "  remember <file|text> [--repo <path>] [--daily]")
 	fmt.Fprintln(w, "  recall <task> [--repo <path>] [--project <name>] [--output <file>]")
-	fmt.Fprintln(w, "  consolidate [--repo <path>]")
 	fmt.Fprintln(w, "  status [--repo <path>] [--path <dir>]")
 	fmt.Fprintln(w, "  sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Review and maintenance:")
-	fmt.Fprintln(w, "  review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
-	fmt.Fprintln(w, "  doctor [--repo <path>]")
-	fmt.Fprintln(w, "  backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Advanced commands:")
-	fmt.Fprintln(w, "  setup claude [--repo <path>] [--project <name>] [--path <dir>]")
-	fmt.Fprintln(w, "  scan <path> [--repo <path>]")
-	fmt.Fprintln(w, "  capture <file> --repo <path>")
-	fmt.Fprintln(w, "  promote <file> --to <target> --repo <path>")
-	fmt.Fprintln(w, "  daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
-	fmt.Fprintln(w, "  project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
-	fmt.Fprintln(w, "  import specstory <path> [--repo <path>]")
-	fmt.Fprintln(w, "  adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
-	fmt.Fprintln(w, "  index <build|search> [query] [--repo <path>]")
-	fmt.Fprintln(w, "  mcp serve [--repo <path>]")
-	fmt.Fprintln(w, "  dream [--repo <path>]")
 }
 
 func levelString(level scan.Level) string {

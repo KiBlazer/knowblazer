@@ -17,11 +17,6 @@ type Result struct {
 }
 
 func Status(repoRoot string) (Result, error) {
-	if result, err := scan.Path(repoRoot); err != nil {
-		return Result{}, err
-	} else if result.Level == scan.High {
-		return Result{}, errors.New("sensitive content detected; sync status blocked until quarantine is reviewed")
-	}
 	return git(repoRoot, "status", "--short")
 }
 
@@ -68,7 +63,6 @@ func existingStagePaths(repoRoot string) ([]string, error) {
 		"projects",
 		"experience",
 		"inbox",
-		"quarantine",
 		".knowblazer",
 		"profile",
 		"system",

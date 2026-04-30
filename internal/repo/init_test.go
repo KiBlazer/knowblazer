@@ -2,6 +2,7 @@ package repo
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ func TestInitCreatesDefaultMemoryRepo(t *testing.T) {
 	}
 
 	wantPaths := []string{
+		".git",
 		".knowblazer/config.json",
 		"AI-SETUP.md",
 		"inbox",
@@ -29,6 +31,16 @@ func TestInitCreatesDefaultMemoryRepo(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("expected %s to exist: %v", rel, err)
 		}
+	}
+
+	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("initialized repo is not a valid git repo: %v\n%s", err, output)
+	}
+	if strings.TrimSpace(string(output)) != "true" {
+		t.Fatalf("git rev-parse output = %q, want true", output)
 	}
 }
 

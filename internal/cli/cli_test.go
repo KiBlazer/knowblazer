@@ -19,9 +19,14 @@ func TestRunHelpIncludesCoreWorkflow(t *testing.T) {
 		t.Fatalf("help code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Core workflow:", "start [--repo <path>]", "remember <file|text>", "consolidate [--repo <path>]", "recall <task>", "Advanced commands:", "setup claude"} {
+	for _, want := range []string{"Common commands:", "start [--repo <path>]", "remember <file|text>", "recall <task>", "status [--repo <path>]", "sync [status|commit|push|pull]"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("stdout missing %q: %s", want, out)
+		}
+	}
+	for _, hidden := range []string{"consolidate [--repo <path>]", "Advanced commands:", "setup claude", "mcp serve", "adapter <claude|codex|gemini|cursor>"} {
+		if strings.Contains(out, hidden) {
+			t.Fatalf("stdout should not show %q by default: %s", hidden, out)
 		}
 	}
 }
@@ -89,8 +94,8 @@ func TestRunDoctorUsesRepoFlag(t *testing.T) {
 	if !strings.Contains(out, "OK  config") {
 		t.Fatalf("stdout missing config check: %s", out)
 	}
-	if !strings.Contains(out, "WARN  git-repo") {
-		t.Fatalf("stdout missing local-first git warning: %s", out)
+	if !strings.Contains(out, "WARN  git-remote") {
+		t.Fatalf("stdout missing local-first remote warning: %s", out)
 	}
 }
 
@@ -172,7 +177,7 @@ func TestRunInitCreatesRepoAndPrintsNextSteps(t *testing.T) {
 	if !strings.Contains(out, "Initialized Knowblazer memory repo:") {
 		t.Fatalf("stdout missing init message: %s", out)
 	}
-	if !strings.Contains(out, "knowblazer remember \"<lesson>\"") || !strings.Contains(out, "knowblazer consolidate") {
+	if !strings.Contains(out, "knowblazer remember \"<lesson>\"") || !strings.Contains(out, "knowblazer recall \"<task>\"") || !strings.Contains(out, "knowblazer sync status") {
 		t.Fatalf("stdout missing dynamic memory next steps: %s", out)
 	}
 }
@@ -594,7 +599,6 @@ func TestRunSyncStatus(t *testing.T) {
 	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
 		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
 	}
-	runTestGit(t, root, "init")
 	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
 		t.Fatalf("write project: %v", err)
 	}
@@ -616,7 +620,6 @@ func TestRunSyncDefaultsToStatus(t *testing.T) {
 	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
 		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
 	}
-	runTestGit(t, root, "init")
 	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
 		t.Fatalf("write project: %v", err)
 	}

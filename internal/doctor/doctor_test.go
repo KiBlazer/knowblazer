@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -10,11 +11,7 @@ import (
 
 func TestRunHealthyRepoHasNoFailures(t *testing.T) {
 	root := initRepo(t)
-	writeGitConfig(t, root, `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = git@example.com:owner/repo.git
-`)
+	addGitRemote(t, root)
 
 	result := Run(root)
 	if result.HasFailures() {
@@ -67,24 +64,20 @@ func TestRunWarnsForQuarantineFiles(t *testing.T) {
 	assertCheck(t, result, "quarantine-files", Warn)
 }
 
-func TestRunWarnsWhenGitMetadataIsMissing(t *testing.T) {
+func TestRunWarnsWhenGitRemoteIsMissing(t *testing.T) {
 	root := initRepo(t)
 
 	result := Run(root)
 	if result.HasFailures() {
 		t.Fatalf("expected warnings without failure: %#v", result.Checks)
 	}
-	assertCheck(t, result, "git-repo", Warn)
+	assertCheck(t, result, "git-repo", OK)
 	assertCheck(t, result, "git-remote", Warn)
 }
 
 func TestRunDetectsGitRemoteFromConfig(t *testing.T) {
 	root := initRepo(t)
-	writeGitConfig(t, root, `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = git@example.com:owner/repo.git
-`)
+	addGitRemote(t, root)
 
 	result := Run(root)
 	assertCheck(t, result, "git-repo", OK)
@@ -100,14 +93,13 @@ func initRepo(t *testing.T) string {
 	return root
 }
 
-func writeGitConfig(t *testing.T, root string, content string) {
+func addGitRemote(t *testing.T, root string) {
 	t.Helper()
-	gitDir := filepath.Join(root, ".git")
-	if err := os.MkdirAll(gitDir, 0o755); err != nil {
-		t.Fatalf("mkdir .git: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(content), 0o644); err != nil {
-		t.Fatalf("write git config: %v", err)
+	cmd := exec.Command("git", "remote", "add", "origin", "git@example.com:owner/repo.git")
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git remote add failed: %v\n%s", err, output)
 	}
 }
 

@@ -15,7 +15,6 @@ func TestStatusReturnsGitShortStatus(t *testing.T) {
 	if err := repo.Init(root); err != nil {
 		t.Fatalf("repo.Init() error = %v", err)
 	}
-	runGit(t, root, "init")
 	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
 		t.Fatalf("write project: %v", err)
 	}
@@ -34,7 +33,6 @@ func TestCommitBlocksHighRiskContent(t *testing.T) {
 	if err := repo.Init(root); err != nil {
 		t.Fatalf("repo.Init() error = %v", err)
 	}
-	runGit(t, root, "init")
 	if err := os.WriteFile(filepath.Join(root, "projects", "secret.md"), []byte("password=super-secret-password\n"), 0o644); err != nil {
 		t.Fatalf("write secret: %v", err)
 	}
@@ -44,12 +42,11 @@ func TestCommitBlocksHighRiskContent(t *testing.T) {
 	}
 }
 
-func TestCommitStagesMinimalDynamicRepoPaths(t *testing.T) {
+func TestCommitDoesNotStageQuarantineByDefault(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	if err := repo.Init(root); err != nil {
 		t.Fatalf("repo.Init() error = %v", err)
 	}
-	runGit(t, root, "init")
 	runGit(t, root, "config", "user.email", "test@example.com")
 	runGit(t, root, "config", "user.name", "Test User")
 	if err := os.WriteFile(filepath.Join(root, "quarantine", "README.md"), []byte("# Quarantine\n"), 0o644); err != nil {
@@ -60,10 +57,13 @@ func TestCommitStagesMinimalDynamicRepoPaths(t *testing.T) {
 		t.Fatalf("Commit() error = %v", err)
 	}
 	result := gitTrackedFiles(t, root)
-	for _, want := range []string{"AI-SETUP.md", "experience/auto/README.md", "quarantine/README.md"} {
+	for _, want := range []string{"AI-SETUP.md", "experience/auto/README.md"} {
 		if !strings.Contains(result, want) {
 			t.Fatalf("commit missing tracked path %q:\n%s", want, result)
 		}
+	}
+	if strings.Contains(result, "quarantine/README.md") {
+		t.Fatalf("commit should not stage quarantine by default:\n%s", result)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/knowblazer/knowblazer/templates"
@@ -22,7 +23,10 @@ func Init(root string) error {
 		return err
 	}
 
-	return writeTemplate(root)
+	if err := writeTemplate(root); err != nil {
+		return err
+	}
+	return ensureGitRepo(root)
 }
 
 func writeTemplate(root string) error {
@@ -81,6 +85,21 @@ func ensureCanInitialize(root string) error {
 func isKnowblazerRepo(root string) bool {
 	_, err := os.Stat(filepath.Join(root, ".knowblazer", "config.json"))
 	return err == nil
+}
+
+func ensureGitRepo(root string) error {
+	if _, err := os.Stat(filepath.Join(root, ".git")); err == nil {
+		return nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	cmd := exec.Command("git", "init")
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git init failed: %w\n%s", err, output)
+	}
+	return nil
 }
 
 func writeFileIfMissing(path string, content []byte) error {
