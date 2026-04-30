@@ -72,7 +72,7 @@ func TestMarkdownAutoCleanFileGoesToExperienceAuto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read captured: %v", err)
 	}
-	for _, want := range []string{`type: "experience"`, `status: "auto_promoted"`, `scan_level: "clean"`} {
+	for _, want := range []string{`type: "experience"`, `status: "fresh"`, `scan_level: "clean"`} {
 		if !strings.Contains(string(captured), want) {
 			t.Fatalf("captured file missing %q:\n%s", want, captured)
 		}

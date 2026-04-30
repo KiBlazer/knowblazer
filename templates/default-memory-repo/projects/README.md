@@ -1,20 +1,10 @@
 # Projects
 
-Durable project context goes here.
+Synthesized project facts, constraints, and operating notes go here.
 
-Use one Markdown file per project when possible:
+Useful content:
 
-```text
-project-name.md
-```
-
-Suggested sections:
-
-- Overview
-- Architecture
-- Local development
-- Deployment
-- Important directories
-- Common pitfalls
-- Operational cautions
-- Related experience notes
+- what the project is for
+- important constraints and decisions
+- local development or deployment facts
+- recurring pitfalls and cautions

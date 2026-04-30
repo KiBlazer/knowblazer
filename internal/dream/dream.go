@@ -41,9 +41,9 @@ source: "knowblazer dream"
 captured_at: "%s"
 ---
 
-# Dream Suggestions %s
+# Dynamic Memory Suggestions %s
 
-Review these local deterministic suggestions before promoting anything.
+Use these deterministic suggestions as inputs for the dynamic memory loop.
 
 %s
 `, now.Format("2006-01-02"), now.Format(time.RFC3339), now.Format("2006-01-02"), strings.Join(snippets, "\n"))

@@ -26,15 +26,15 @@ func TestRunHealthyRepoHasNoFailures(t *testing.T) {
 
 func TestRunFailsWhenRequiredFileIsMissing(t *testing.T) {
 	root := initRepo(t)
-	if err := os.Remove(filepath.Join(root, "system", "privacy-policy.md")); err != nil {
-		t.Fatalf("remove policy: %v", err)
+	if err := os.Remove(filepath.Join(root, "AI-SETUP.md")); err != nil {
+		t.Fatalf("remove AI setup: %v", err)
 	}
 
 	result := Run(root)
 	if !result.HasFailures() {
 		t.Fatalf("expected failure: %#v", result.Checks)
 	}
-	assertCheck(t, result, "system/privacy-policy.md", Fail)
+	assertCheck(t, result, "AI-SETUP.md", Fail)
 }
 
 func TestRunFailsWhenRequiredDirectoryIsMissing(t *testing.T) {

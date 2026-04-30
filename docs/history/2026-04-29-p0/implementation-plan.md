@@ -1,5 +1,7 @@
 # Knowblazer P0 Implementation Plan
 
+> Status: Historical P0 implementation plan from 2026-04-29. It describes the first local CLI implementation path. For current dynamic-memory positioning and requirement evolution, see [Engineering positioning](../../current/positioning.md) and [Requirements history](../requirements-history.md).
+
 Date: 2026-04-29
 
 ## 1. Implementation Goal

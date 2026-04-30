@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,15 @@ func Commit(repoRoot string, message string) (Result, error) {
 	} else if result.Level == scan.High {
 		return Result{}, errors.New("sensitive content detected; commit blocked")
 	}
-	if _, err := git(repoRoot, "add", "AI-SETUP.md", "daily", "profile", "projects", "experience", "system", "inbox", "recall", ".knowblazer"); err != nil {
+	paths, err := existingStagePaths(repoRoot)
+	if err != nil {
+		return Result{}, err
+	}
+	if len(paths) == 0 {
+		return Result{}, errors.New("no Knowblazer paths found to stage")
+	}
+	args := append([]string{"add"}, paths...)
+	if _, err := git(repoRoot, args...); err != nil {
 		return Result{}, err
 	}
 	return git(repoRoot, "commit", "-m", message)
@@ -50,6 +59,34 @@ func Push(repoRoot string) (Result, error) {
 
 func Pull(repoRoot string) (Result, error) {
 	return git(repoRoot, "pull")
+}
+
+func existingStagePaths(repoRoot string) ([]string, error) {
+	known := []string{
+		"AI-SETUP.md",
+		"daily",
+		"projects",
+		"experience",
+		"inbox",
+		"quarantine",
+		".knowblazer",
+		"profile",
+		"system",
+		"recall",
+	}
+	var paths []string
+	for _, path := range known {
+		_, err := os.Stat(filepath.Join(repoRoot, path))
+		if err == nil {
+			paths = append(paths, path)
+			continue
+		}
+		if os.IsNotExist(err) {
+			continue
+		}
+		return nil, err
+	}
+	return paths, nil
 }
 
 func git(repoRoot string, args ...string) (Result, error) {

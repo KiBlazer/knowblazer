@@ -1,5 +1,7 @@
 # Knowblazer MVP Specification
 
+> Status: Historical P0 specification from 2026-04-29. It documents the original init/capture/scan/promote/recall path. For current dynamic-memory positioning and requirement evolution, see [Engineering positioning](../../current/positioning.md) and [Requirements history](../requirements-history.md).
+
 Date: 2026-04-29
 
 ## 1. Goal

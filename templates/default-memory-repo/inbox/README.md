@@ -9,4 +9,4 @@ Typical sources:
 - local analysis documents
 - temporary human notes
 
-Content in this directory is not reviewed long-term memory yet. Promote useful entries into `profile/`, `projects/`, or `experience/` after review.
+Content in this directory is raw candidate memory. Prefer automatic consolidation for reusable signals; use review/promote only for explicit manual curation.

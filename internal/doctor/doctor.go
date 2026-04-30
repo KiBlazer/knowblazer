@@ -62,18 +62,14 @@ func Run(root string) Result {
 var requiredDirs = []string{
 	"inbox",
 	"daily",
-	"profile",
 	"projects",
 	"experience",
+	"experience/auto",
 	"quarantine",
-	"recall",
-	"system",
 }
 
 var requiredFiles = []string{
 	"AI-SETUP.md",
-	"system/memory-policy.md",
-	"system/privacy-policy.md",
 }
 
 func (result *Result) add(check Check) {

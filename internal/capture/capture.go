@@ -52,7 +52,7 @@ func markdown(repoRoot string, sourcePath string, autoPromote bool) (Result, err
 		targetDir = filepath.Join(repoRoot, layer, now.Format("2006-01-02"))
 	} else if autoPromote {
 		layer = filepath.Join("experience", "auto")
-		status = "auto_promoted"
+		status = "fresh"
 		noteType = "experience"
 		targetDir = filepath.Join(repoRoot, "experience", "auto")
 	}

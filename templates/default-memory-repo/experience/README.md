@@ -1,13 +1,7 @@
 # Experience
 
-Reusable engineering lessons go here.
+Synthesized reusable engineering lessons go here.
 
-Organize notes by area:
+`auto/` contains newly captured lessons. Knowblazer should consolidate them automatically into higher-signal memory over time.
 
-- `deployment/`
-- `frontend/`
-- `backend/`
-- `ai-tools/`
-- `operations/`
-
-Good experience notes are concise, specific, and reusable. They explain what happened, why it mattered, and what to do next time.
+Create additional subdirectories only when recurring topics justify their own category.

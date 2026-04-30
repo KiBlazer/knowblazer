@@ -13,7 +13,11 @@ func TestBuildAndSearchReviewedMemory(t *testing.T) {
 	if err := repo.Init(root); err != nil {
 		t.Fatalf("repo.Init() error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "experience", "deployment", "deploy.md"), []byte("# Deploy\n\nRun smoke tests after deploy.\n"), 0o644); err != nil {
+	deployDir := filepath.Join(root, "experience", "deployment")
+	if err := os.MkdirAll(deployDir, 0o755); err != nil {
+		t.Fatalf("mkdir experience: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(deployDir, "deploy.md"), []byte("# Deploy\n\nRun smoke tests after deploy.\n"), 0o644); err != nil {
 		t.Fatalf("write experience: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "quarantine", "secret.md"), []byte("# Secret\n\ndeploy password\n"), 0o644); err != nil {

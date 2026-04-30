@@ -15,4 +15,4 @@ Use daily notes for:
 - unresolved observations
 - short troubleshooting notes
 
-Promote durable lessons into `experience/`, `projects/`, or `profile/`.
+Promote durable lessons into `experience/` or `projects/`.

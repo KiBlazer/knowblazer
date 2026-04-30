@@ -1,5 +1,7 @@
 # Knowblazer Product Requirements
 
+> Status: Historical baseline from 2026-04-29. This document describes the original private Git-backed engineering memory direction. For current dynamic-memory positioning and requirement evolution, see [Engineering positioning](../../current/positioning.md) and [Requirements history](../requirements-history.md).
+
 Date: 2026-04-29
 
 ## 1. Background and Opportunity

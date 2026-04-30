@@ -50,6 +50,7 @@ func Generate(repoRoot string, opts Options) ([]byte, error) {
 	fmt.Fprintln(&out, "## Cautions")
 	fmt.Fprintln(&out)
 	fmt.Fprintln(&out, "- This pack excludes inbox and quarantine by default.")
+	fmt.Fprintln(&out, "- It prioritizes synthesized memory and uses fresh automatic memory as lower-confidence context.")
 	fmt.Fprintln(&out, "- Verify commands and secrets before running anything.")
 	return limitBytes(out.Bytes(), maxPackBytes), nil
 }
@@ -84,8 +85,9 @@ func readExisting(paths ...string) []string {
 
 func relevantExperience(repoRoot string, task string, maxFiles int) []string {
 	type candidate struct {
-		path  string
-		score int
+		path     string
+		score    int
+		priority int
 	}
 
 	keywords := keywords(task)
@@ -99,13 +101,21 @@ func relevantExperience(repoRoot string, task string, maxFiles int) []string {
 		if err != nil {
 			return nil
 		}
-		score := scoreText(path+"\n"+string(content), keywords)
+		text := string(content)
+		priority := experiencePriority(repoRoot, path)
+		if priority == 2 && !isFreshAutoMemory(text) {
+			return nil
+		}
+		score := scoreText(path+"\n"+text, keywords)
 		if score > 0 {
-			candidates = append(candidates, candidate{path: path, score: score})
+			candidates = append(candidates, candidate{path: path, score: score, priority: priority})
 		}
 		return nil
 	})
 	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].priority != candidates[j].priority {
+			return candidates[i].priority < candidates[j].priority
+		}
 		if candidates[i].score == candidates[j].score {
 			return candidates[i].path < candidates[j].path
 		}
@@ -123,6 +133,25 @@ func relevantExperience(repoRoot string, task string, maxFiles int) []string {
 		}
 	}
 	return parts
+}
+
+func experiencePriority(repoRoot string, path string) int {
+	rel, err := filepath.Rel(filepath.Join(repoRoot, "experience"), path)
+	if err != nil {
+		return 1
+	}
+	rel = filepath.ToSlash(rel)
+	if strings.HasPrefix(rel, "synthesized/") {
+		return 0
+	}
+	if strings.HasPrefix(rel, "auto/") {
+		return 2
+	}
+	return 1
+}
+
+func isFreshAutoMemory(content string) bool {
+	return strings.Contains(content, `status: "fresh"`) || strings.Contains(content, `status: "auto_promoted"`)
 }
 
 func recentDaily(repoRoot string) []string {

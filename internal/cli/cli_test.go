@@ -19,7 +19,7 @@ func TestRunHelpIncludesCoreWorkflow(t *testing.T) {
 		t.Fatalf("help code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Core workflow:", "start [--repo <path>]", "remember <file|text>", "recall <task>", "Advanced commands:", "setup claude"} {
+	for _, want := range []string{"Core workflow:", "start [--repo <path>]", "remember <file|text>", "consolidate [--repo <path>]", "recall <task>", "Advanced commands:", "setup claude"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("stdout missing %q: %s", want, out)
 		}
@@ -172,8 +172,8 @@ func TestRunInitCreatesRepoAndPrintsNextSteps(t *testing.T) {
 	if !strings.Contains(out, "Initialized Knowblazer memory repo:") {
 		t.Fatalf("stdout missing init message: %s", out)
 	}
-	if !strings.Contains(out, "knowblazer capture <file>") {
-		t.Fatalf("stdout missing next steps: %s", out)
+	if !strings.Contains(out, "knowblazer remember \"<lesson>\"") || !strings.Contains(out, "knowblazer consolidate") {
+		t.Fatalf("stdout missing dynamic memory next steps: %s", out)
 	}
 }
 
@@ -362,7 +362,11 @@ func TestRunAdapterImportAndIndex(t *testing.T) {
 		t.Fatalf("import output missing inbox path: %s", stdout.String())
 	}
 
-	experience := filepath.Join(root, "experience", "deployment", "deploy.md")
+	experienceDir := filepath.Join(root, "experience", "deployment")
+	if err := os.MkdirAll(experienceDir, 0o755); err != nil {
+		t.Fatalf("mkdir experience: %v", err)
+	}
+	experience := filepath.Join(experienceDir, "deploy.md")
 	if err := os.WriteFile(experience, []byte("# Deploy\n\nRun smoke tests after deploy.\n"), 0o644); err != nil {
 		t.Fatalf("write experience: %v", err)
 	}
@@ -394,8 +398,8 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	if code := Run([]string{"remember", "Deploys", "need", "smoke", "tests", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("remember code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Remembered to long-term memory:") {
-		t.Fatalf("remember output missing long-term memory path: %s", stdout.String())
+	if !strings.Contains(stdout.String(), "Remembered to fresh memory:") {
+		t.Fatalf("remember output missing fresh memory path: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), filepath.Join("experience", "auto")) {
 		t.Fatalf("remember output missing experience auto path: %s", stdout.String())
@@ -408,6 +412,47 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "# Knowblazer Recall Pack") {
 		t.Fatalf("recall output missing pack: %s", stdout.String())
+	}
+}
+
+func TestRunConsolidateSynthesizesFreshMemory(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"remember", "Deploys", "need", "smoke", "tests", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("remember code = %d, stderr = %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"status", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("status code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Fresh auto memories: 1") || !strings.Contains(stdout.String(), "Synthesized memories: 0") {
+		t.Fatalf("status missing dynamic counts: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"consolidate", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("consolidate code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Consolidated 1 fresh memories into:") {
+		t.Fatalf("consolidate output missing result: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"status", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("status after consolidate code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Fresh auto memories: 0") || !strings.Contains(stdout.String(), "Synthesized memories: 1") {
+		t.Fatalf("status after consolidate missing dynamic counts: %s", stdout.String())
 	}
 }
 
@@ -609,7 +654,7 @@ func TestRunBackupDreamAndReview(t *testing.T) {
 	if code := Run([]string{"dream", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("dream code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Dream suggestions written to:") {
+	if !strings.Contains(stdout.String(), "Dynamic memory suggestions written to:") {
 		t.Fatalf("dream output missing path: %s", stdout.String())
 	}
 

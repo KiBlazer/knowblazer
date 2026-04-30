@@ -1,8 +1,8 @@
 # Knowblazer
 
-Private Git-backed engineering memory for AI coding.
+Local-first dynamic engineering memory for AI coding.
 
-Knowblazer is an open-source tool for maintaining your own private engineering memory repo. It helps turn selected AI coding conversations, project notes, and hard-won lessons into portable Markdown memory that Claude Code, Codex, Gemini, Cursor, and other AI coding tools can reuse.
+Knowblazer is an open-source tool for maintaining your own private engineering memory repo. It collects useful AI coding signals, scans them, stores fresh memory, consolidates them into higher-signal Markdown memory, and feeds the best current context back to Claude Code, Codex, Gemini, Cursor, and other AI coding tools.
 
 Knowblazer does not host your memories. Your memory repo lives where you choose: local disk, GitHub private repo, GitLab private repo, self-hosted Git, NAS, or another user-owned Git remote.
 
@@ -26,7 +26,7 @@ Knowblazer is:
 - a CLI workflow for a private engineering memory repo
 - a Markdown/Git memory structure
 - a set of templates and policies
-- a privacy-first capture, scan, promote, and recall flow
+- a privacy-first capture, scan, consolidate, and recall flow
 
 Knowblazer is not:
 
@@ -68,11 +68,13 @@ Daily use:
 
 ```bash
 knowblazer remember "Deploys need smoke tests"
+knowblazer consolidate
+knowblazer recall "deploy new frontend"
 knowblazer status
 knowblazer sync
 ```
 
-Use `remember` for lessons worth keeping; clean lessons are written directly to `experience/auto/`, while high-risk content is quarantined. Use `status` to check the integration, and `sync` only when you choose to commit or push your private memory repo.
+Use `remember` for lessons worth keeping; clean lessons are written directly to `experience/auto/`, `consolidate` turns fresh signals into synthesized memory, and high-risk content is quarantined. Use `status` to check dynamic memory counts, and `sync` only when you choose to commit or push your private memory repo.
 
 ## MVP Flow
 
@@ -87,7 +89,9 @@ remember useful lessons automatically
   ↓
 scan for secrets
   ↓
-store clean memory in experience/auto or risky content in quarantine
+store fresh memory in experience/auto or risky content in quarantine
+  ↓
+consolidate fresh memory into synthesized context
   ↓
 recall task context while coding
 ```
@@ -96,7 +100,7 @@ Core commands:
 
 ```bash
 knowblazer start
-knowblazer remember ./deploy-lesson.md
+knowblazer consolidate
 knowblazer recall "deploy new frontend"
 knowblazer status
 knowblazer sync
@@ -137,30 +141,19 @@ knowblazer-notes/
 ├── AI-SETUP.md
 ├── inbox/
 ├── daily/
-├── profile/
-│   ├── preferences.md
-│   └── decision-principles.md
 ├── projects/
 ├── experience/
-│   ├── deployment/
-│   ├── frontend/
-│   ├── backend/
-│   ├── ai-tools/
-│   └── operations/
-├── system/
-│   ├── memory-policy.md
-│   └── privacy-policy.md
-├── quarantine/
-└── recall/
+│   └── auto/
+└── quarantine/
 ```
 
 Core rules:
 
 - `inbox/` is for unreviewed candidate memory from explicit capture/import flows.
 - `daily/` is for short-term working notes.
-- `profile/`, `projects/`, and `experience/` are long-term memory. Automatic remembered lessons go under `experience/auto/`.
+- `projects/` stores durable project facts, constraints, and operating notes.
+- `experience/` stores reusable engineering lessons; `experience/auto/` is the fresh-memory buffer and `experience/synthesized/` is the higher-signal consolidation layer.
 - `quarantine/` is for sensitive or risky content and is never included in default recall.
-- `recall/` is for generated task context packs.
 
 ## Privacy Model
 
@@ -182,29 +175,29 @@ Knowblazer currently has a local-first CLI implementation for local use. The imp
 
 Current artifacts:
 
-- [Product requirements](docs/requirements.md)
-- [MVP spec](docs/mvp-spec.md)
-- [P0 implementation plan](docs/implementation-plan.md)
+- [Documentation index](docs/README.md)
+- [Engineering positioning](docs/current/positioning.md)
+- [Requirements history](docs/history/requirements-history.md)
 - [Default memory repo template](templates/default-memory-repo)
 
 ## Design Principles
 
 - User-owned memory first.
 - Markdown/Git as source of truth.
-- Recall should be short, relevant, and reviewable.
-- Raw AI conversations are inputs, not long-term memory by default.
-- Promotion requires review.
+- Recall should be short, relevant, and dynamically adjusted.
+- Raw AI conversations are inputs, not durable synthesized memory by default.
+- Automatic consolidation should turn fresh memory into higher-signal context.
 - Privacy is a product requirement, not an optional plugin.
 
 ## Relationship To SpecStory
 
 SpecStory is useful for capturing AI coding conversations and intent history.
 
-Knowblazer is complementary: it focuses on promoting selected transcripts, notes, and lessons into a durable private engineering memory repo.
+Knowblazer is complementary: it turns useful signals from transcripts, notes, and lessons into a dynamic private engineering memory system.
 
 ```text
 SpecStory: raw conversation and intent archive
-Knowblazer: reviewed private engineering memory
+Knowblazer: dynamic private engineering memory for AI coding
 ```
 
 ## License

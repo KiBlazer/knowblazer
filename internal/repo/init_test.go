@@ -19,18 +19,10 @@ func TestInitCreatesDefaultMemoryRepo(t *testing.T) {
 		"AI-SETUP.md",
 		"inbox",
 		"daily",
-		"profile/preferences.md",
-		"profile/decision-principles.md",
 		"projects",
-		"experience/deployment",
-		"experience/frontend",
-		"experience/backend",
-		"experience/ai-tools",
-		"experience/operations",
-		"system/memory-policy.md",
-		"system/privacy-policy.md",
+		"experience",
+		"experience/auto",
 		"quarantine",
-		"recall",
 	}
 
 	for _, rel := range wantPaths {
@@ -51,7 +43,7 @@ func TestInitUsesDefaultTemplateContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read AI-SETUP.md: %v", err)
 	}
-	if !strings.Contains(string(content), "Use it as durable context for AI coding work.") {
+	if !strings.Contains(string(content), "treat synthesized project notes as more reliable than raw automatic notes") {
 		t.Fatalf("AI-SETUP.md does not look like template content:\n%s", content)
 	}
 }
@@ -62,22 +54,22 @@ func TestInitDoesNotOverwriteExistingFiles(t *testing.T) {
 		t.Fatalf("Init() error = %v", err)
 	}
 
-	preferences := filepath.Join(root, "profile", "preferences.md")
-	custom := []byte("# My Preferences\n\nDo not overwrite this.\n")
-	if err := os.WriteFile(preferences, custom, 0o644); err != nil {
-		t.Fatalf("write custom preferences: %v", err)
+	setup := filepath.Join(root, "AI-SETUP.md")
+	custom := []byte("# Custom AI Setup\n\nDo not overwrite this.\n")
+	if err := os.WriteFile(setup, custom, 0o644); err != nil {
+		t.Fatalf("write custom AI setup: %v", err)
 	}
 
 	if err := Init(root); err != nil {
 		t.Fatalf("second Init() error = %v", err)
 	}
 
-	got, err := os.ReadFile(preferences)
+	got, err := os.ReadFile(setup)
 	if err != nil {
-		t.Fatalf("read preferences: %v", err)
+		t.Fatalf("read AI setup: %v", err)
 	}
 	if string(got) != string(custom) {
-		t.Fatalf("preferences was overwritten\ngot:\n%s\nwant:\n%s", got, custom)
+		t.Fatalf("AI setup was overwritten\ngot:\n%s\nwant:\n%s", got, custom)
 	}
 }
 

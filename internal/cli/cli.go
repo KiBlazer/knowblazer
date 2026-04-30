@@ -11,6 +11,7 @@ import (
 	"github.com/knowblazer/knowblazer/internal/adapter"
 	"github.com/knowblazer/knowblazer/internal/backup"
 	"github.com/knowblazer/knowblazer/internal/capture"
+	"github.com/knowblazer/knowblazer/internal/consolidate"
 	"github.com/knowblazer/knowblazer/internal/daily"
 	"github.com/knowblazer/knowblazer/internal/doctor"
 	"github.com/knowblazer/knowblazer/internal/dream"
@@ -70,6 +71,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runProject(args[1:], stdout, stderr)
 	case "promote":
 		return runPromote(args[1:], stdout, stderr)
+	case "consolidate":
+		return runConsolidate(args[1:], stdout, stderr)
 	case "sync":
 		return runSync(args[1:], stdout, stderr)
 	case "recall":
@@ -162,11 +165,23 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintln(stdout, "Claude instructions: not configured")
 		}
 	}
+	freshCount, err := consolidate.CountFresh(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "status failed: %v\n", err)
+		return 1
+	}
+	synthesizedCount, err := consolidate.CountSynthesized(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "status failed: %v\n", err)
+		return 1
+	}
 	candidates, err := review.List(repoRoot)
 	if err != nil {
 		fmt.Fprintf(stderr, "status failed: %v\n", err)
 		return 1
 	}
+	fmt.Fprintf(stdout, "Fresh auto memories: %d\n", freshCount)
+	fmt.Fprintf(stdout, "Synthesized memories: %d\n", synthesizedCount)
 	fmt.Fprintf(stdout, "Inbox candidates: %d\n", len(candidates))
 	return 0
 }
@@ -262,7 +277,7 @@ func runDream(args []string, stdout io.Writer, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "dream failed: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "Dream suggestions written to: %s\n", path)
+	fmt.Fprintf(stdout, "Dynamic memory suggestions written to: %s\n", path)
 	return 0
 }
 
@@ -313,7 +328,7 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "sensitive content detected; saved to quarantine: %s\n", result.Path)
 			return 1
 		}
-		fmt.Fprintf(stdout, "Remembered to long-term memory: %s\n", result.Path)
+		fmt.Fprintf(stdout, "Remembered to fresh memory: %s\n", result.Path)
 		return 0
 	}
 	path, err := rememberText(repoRoot, text)
@@ -321,7 +336,7 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "remember failed: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "Remembered to long-term memory: %s\n", path)
+	fmt.Fprintf(stdout, "Remembered to fresh memory: %s\n", path)
 	return 0
 }
 
@@ -350,6 +365,25 @@ func rememberText(repoRoot string, text string) (string, error) {
 		return "", fmt.Errorf("sensitive content detected; saved to quarantine: %s", result.Path)
 	}
 	return result.Path, nil
+}
+
+func runConsolidate(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	result, err := consolidate.Run(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "consolidate failed: %v\n", err)
+		return 1
+	}
+	if result.Count == 0 {
+		fmt.Fprintln(stdout, "No fresh auto memories to consolidate.")
+		return 0
+	}
+	fmt.Fprintf(stdout, "Consolidated %d fresh memories into: %s\n", result.Count, result.Path)
+	return 0
 }
 
 func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -832,9 +866,9 @@ func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
 
 	fmt.Fprintf(stdout, "Initialized Knowblazer memory repo: %s\n", root)
 	fmt.Fprintln(stdout, "Next steps:")
-	fmt.Fprintln(stdout, "  1. Edit AI-SETUP.md")
-	fmt.Fprintf(stdout, "  2. Capture a lesson with: knowblazer capture <file> --repo %s\n", root)
-	fmt.Fprintf(stdout, "  3. Generate recall with: knowblazer recall --task \"<task>\" --repo %s\n", root)
+	fmt.Fprintf(stdout, "  1. Capture fresh memory with: knowblazer remember \"<lesson>\" --repo %s\n", root)
+	fmt.Fprintf(stdout, "  2. Consolidate fresh memory with: knowblazer consolidate --repo %s\n", root)
+	fmt.Fprintf(stdout, "  3. Generate dynamic context with: knowblazer recall --task \"<task>\" --repo %s\n", root)
 	return 0
 }
 
@@ -845,6 +879,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  start [--repo <path>] [--path <dir>] [--skip-mcp]")
 	fmt.Fprintln(w, "  remember <file|text> [--repo <path>] [--daily]")
 	fmt.Fprintln(w, "  recall <task> [--repo <path>] [--project <name>] [--output <file>]")
+	fmt.Fprintln(w, "  consolidate [--repo <path>]")
 	fmt.Fprintln(w, "  status [--repo <path>] [--path <dir>]")
 	fmt.Fprintln(w, "  sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
 	fmt.Fprintln(w)

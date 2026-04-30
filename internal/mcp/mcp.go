@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/knowblazer/knowblazer/internal/capture"
+	"github.com/knowblazer/knowblazer/internal/consolidate"
 	"github.com/knowblazer/knowblazer/internal/daily"
 	"github.com/knowblazer/knowblazer/internal/index"
 	"github.com/knowblazer/knowblazer/internal/projectmap"
@@ -84,6 +85,8 @@ func handle(repoRoot string, req Request) *Response {
 	case "knowblazer_search":
 		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
 	case "knowblazer_capture":
+		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
+	case "knowblazer_consolidate":
 		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
 	default:
 		return fail(req.ID, fmt.Sprintf("unknown method: %s", req.Method))
@@ -193,6 +196,15 @@ func directToolResult(repoRoot string, id any, name string, params map[string]an
 			return fail(id, err.Error())
 		}
 		return ok(id, result)
+	case "knowblazer_consolidate":
+		result, err := consolidate.Run(repoRoot)
+		if err != nil {
+			return fail(id, err.Error())
+		}
+		if result.Count == 0 {
+			return ok(id, map[string]any{"status": "noop", "count": 0})
+		}
+		return ok(id, map[string]any{"status": "synthesized", "path": result.Path, "count": result.Count})
 	default:
 		return fail(id, fmt.Sprintf("unknown tool: %s", name))
 	}
@@ -200,19 +212,19 @@ func directToolResult(repoRoot string, id any, name string, params map[string]an
 
 func toolDefinitions() []map[string]any {
 	return []map[string]any{
-		toolDefinition("knowblazer_context", "Generate task context from Knowblazer memory.", map[string]any{
+		toolDefinition("knowblazer_context", "Generate dynamic task context from Knowblazer memory.", map[string]any{
 			"task":      stringSchema("Task description to generate context for."),
 			"project":   stringSchema("Optional project memory name."),
 			"workspace": stringSchema("Optional workspace path used to resolve project mapping."),
 		}, []string{"task"}),
-		toolDefinition("knowblazer_remember", "Save a durable lesson to long-term auto memory or daily notes.", map[string]any{
+		toolDefinition("knowblazer_remember", "Capture a fresh reusable memory signal or daily note.", map[string]any{
 			"text":  stringSchema("Lesson text to remember."),
-			"daily": map[string]any{"type": "boolean", "description": "Save as a daily note instead of long-term auto memory."},
+			"daily": map[string]any{"type": "boolean", "description": "Save as a daily note instead of fresh automatic memory."},
 		}, []string{"text"}),
-		toolDefinition("knowblazer_status", "Check Knowblazer memory connection status.", map[string]any{
+		toolDefinition("knowblazer_status", "Check Knowblazer memory connection and dynamic memory status.", map[string]any{
 			"workspace": stringSchema("Optional workspace path."),
 		}, nil),
-		toolDefinition("knowblazer_recall", "Generate a recall pack for a task.", map[string]any{
+		toolDefinition("knowblazer_recall", "Generate a dynamic recall pack for a task.", map[string]any{
 			"task":    stringSchema("Task description."),
 			"project": stringSchema("Optional project memory name."),
 		}, []string{"task"}),
@@ -222,6 +234,7 @@ func toolDefinitions() []map[string]any {
 		toolDefinition("knowblazer_capture", "Capture a Markdown file into Knowblazer.", map[string]any{
 			"file": stringSchema("Markdown file path to capture."),
 		}, []string{"file"}),
+		toolDefinition("knowblazer_consolidate", "Consolidate fresh automatic memories into synthesized memory.", map[string]any{}, nil),
 	}
 }
 
@@ -265,7 +278,7 @@ func rememberText(repoRoot string, text string) (map[string]any, error) {
 	if result.ScanLevel == scan.High {
 		return nil, fmt.Errorf("sensitive content detected; saved to quarantine: %s", result.Path)
 	}
-	return map[string]any{"path": result.Path, "status": "auto_promoted", "scan_level": result.ScanLevel.String()}, nil
+	return map[string]any{"path": result.Path, "status": "fresh", "scan_level": result.ScanLevel.String()}, nil
 }
 
 func status(repoRoot string, workspace string) (map[string]any, error) {
@@ -282,17 +295,27 @@ func status(repoRoot string, workspace string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	freshCount, err := consolidate.CountFresh(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	synthesizedCount, err := consolidate.CountSynthesized(repoRoot)
+	if err != nil {
+		return nil, err
+	}
 	configured := false
 	if workspace != "" {
 		content, err := os.ReadFile(filepath.Join(workspace, "CLAUDE.md"))
 		configured = err == nil && strings.Contains(string(content), "KNOWBLAZER-CLAUDE-SETUP:START")
 	}
 	return map[string]any{
-		"repo":              repoRoot,
-		"project":           project,
-		"workspace":         workspace,
-		"claude_configured": configured,
-		"inbox_candidates":  len(candidates),
+		"repo":                 repoRoot,
+		"project":              project,
+		"workspace":            workspace,
+		"claude_configured":    configured,
+		"fresh_auto_memories":  freshCount,
+		"synthesized_memories": synthesizedCount,
+		"inbox_candidates":     len(candidates),
 	}, nil
 }
 
