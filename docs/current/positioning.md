@@ -48,7 +48,7 @@ Its responsibilities are:
 
 New signals come from CLI commands, MCP calls, imported transcripts, daily notes, project notes, and future integrations.
 
-Fresh reusable lessons should land in `experience/auto/` first. This keeps capture fast and avoids forcing a taxonomy too early.
+Fresh reusable lessons land in `experience/auto/` first and are automatically consolidated into synthesized memory after capture. This keeps capture fast while still making memory useful without manual promotion.
 
 ### 2. Safety Scan
 
@@ -58,7 +58,7 @@ High-risk content goes to `quarantine/` and must be excluded from default recall
 
 ### 3. Consolidation
 
-Knowblazer should automatically process fresh memory into higher-signal memory.
+Knowblazer automatically processes fresh memory into higher-signal memory. The first trigger is capture-time consolidation after `remember` or MCP `knowblazer_remember`; explicit `knowblazer consolidate` remains available for manual recovery or batch processing.
 
 Consolidation should:
 

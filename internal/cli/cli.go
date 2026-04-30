@@ -329,6 +329,9 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintf(stdout, "Remembered to fresh memory: %s\n", result.Path)
+		if !autoConsolidate(repoRoot, stdout, stderr) {
+			return 1
+		}
 		return 0
 	}
 	path, err := rememberText(repoRoot, text)
@@ -337,7 +340,22 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	fmt.Fprintf(stdout, "Remembered to fresh memory: %s\n", path)
+	if !autoConsolidate(repoRoot, stdout, stderr) {
+		return 1
+	}
 	return 0
+}
+
+func autoConsolidate(repoRoot string, stdout io.Writer, stderr io.Writer) bool {
+	result, err := consolidate.Run(repoRoot)
+	if err != nil {
+		fmt.Fprintf(stderr, "automatic consolidation failed: %v\n", err)
+		return false
+	}
+	if result.Count > 0 {
+		fmt.Fprintf(stdout, "Auto-consolidated %d fresh memories into: %s\n", result.Count, result.Path)
+	}
+	return true
 }
 
 func rememberText(repoRoot string, text string) (string, error) {

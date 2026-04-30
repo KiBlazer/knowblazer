@@ -278,7 +278,15 @@ func rememberText(repoRoot string, text string) (map[string]any, error) {
 	if result.ScanLevel == scan.High {
 		return nil, fmt.Errorf("sensitive content detected; saved to quarantine: %s", result.Path)
 	}
-	return map[string]any{"path": result.Path, "status": "fresh", "scan_level": result.ScanLevel.String()}, nil
+	consolidated, err := consolidate.Run(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	resultMap := map[string]any{"path": result.Path, "status": "fresh", "scan_level": result.ScanLevel.String()}
+	if consolidated.Count > 0 {
+		resultMap["consolidation"] = map[string]any{"status": "synthesized", "path": consolidated.Path, "count": consolidated.Count}
+	}
+	return resultMap, nil
 }
 
 func status(repoRoot string, workspace string) (map[string]any, error) {

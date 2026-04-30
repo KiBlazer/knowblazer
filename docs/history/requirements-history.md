@@ -67,7 +67,7 @@ Requirement shift:
 - The product should automatically collect memory, process and synthesize it, and feed high-signal context back to AI tools.
 - Manual review can exist, but it must not be required for memory to become useful.
 - `experience/auto/` is a fresh-memory buffer, not the final knowledge layer.
-- Synthesized `projects/` and `experience/` memory should be preferred during recall.
+- `remember` and MCP `knowblazer_remember` now automatically trigger deterministic consolidation after fresh memory capture.
 
 Target loop:
 
@@ -75,9 +75,15 @@ Target loop:
 collect -> process -> synthesize -> recall -> learn from use -> process again
 ```
 
+Implemented implications:
+
+- Fresh memory is captured to `experience/auto/` with status `fresh`.
+- Capture-time automatic consolidation writes synthesized memory under `experience/synthesized/`.
+- Recall prefers synthesized memory and only uses fresh auto memory as lower-confidence context.
+
 Open implementation implications:
 
-- Add an automatic consolidation workflow.
+- Improve consolidation quality beyond deterministic summaries.
 - Track memory status such as fresh, consolidated, superseded, and quarantined.
 - Rank memory by relevance, recency, scope, confidence, and usage feedback.
 - Keep Markdown/Git as the human-readable source of truth while using indexes, MCP, and future background jobs as acceleration layers.

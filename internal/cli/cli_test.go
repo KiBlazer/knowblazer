@@ -404,6 +404,9 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	if !strings.Contains(stdout.String(), filepath.Join("experience", "auto")) {
 		t.Fatalf("remember output missing experience auto path: %s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "Auto-consolidated 1 fresh memories into:") {
+		t.Fatalf("remember output missing automatic consolidation: %s", stdout.String())
+	}
 
 	stdout.Reset()
 	stderr.Reset()
@@ -415,7 +418,7 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	}
 }
 
-func TestRunConsolidateSynthesizesFreshMemory(t *testing.T) {
+func TestRunExplicitConsolidateIsNoopAfterAutomaticConsolidation(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
@@ -433,8 +436,8 @@ func TestRunConsolidateSynthesizesFreshMemory(t *testing.T) {
 	if code := Run([]string{"status", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("status code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Fresh auto memories: 1") || !strings.Contains(stdout.String(), "Synthesized memories: 0") {
-		t.Fatalf("status missing dynamic counts: %s", stdout.String())
+	if !strings.Contains(stdout.String(), "Fresh auto memories: 0") || !strings.Contains(stdout.String(), "Synthesized memories: 1") {
+		t.Fatalf("status missing automatic consolidation counts: %s", stdout.String())
 	}
 
 	stdout.Reset()
@@ -442,17 +445,8 @@ func TestRunConsolidateSynthesizesFreshMemory(t *testing.T) {
 	if code := Run([]string{"consolidate", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("consolidate code = %d, stderr = %s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "Consolidated 1 fresh memories into:") {
-		t.Fatalf("consolidate output missing result: %s", stdout.String())
-	}
-
-	stdout.Reset()
-	stderr.Reset()
-	if code := Run([]string{"status", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("status after consolidate code = %d, stderr = %s", code, stderr.String())
-	}
-	if !strings.Contains(stdout.String(), "Fresh auto memories: 0") || !strings.Contains(stdout.String(), "Synthesized memories: 1") {
-		t.Fatalf("status after consolidate missing dynamic counts: %s", stdout.String())
+	if !strings.Contains(stdout.String(), "No fresh auto memories to consolidate.") {
+		t.Fatalf("consolidate should be noop after automatic consolidation: %s", stdout.String())
 	}
 }
 

@@ -68,13 +68,12 @@ Daily use:
 
 ```bash
 knowblazer remember "Deploys need smoke tests"
-knowblazer consolidate
 knowblazer recall "deploy new frontend"
 knowblazer status
 knowblazer sync
 ```
 
-Use `remember` for lessons worth keeping; clean lessons are written directly to `experience/auto/`, `consolidate` turns fresh signals into synthesized memory, and high-risk content is quarantined. Use `status` to check dynamic memory counts, and `sync` only when you choose to commit or push your private memory repo.
+Use `remember` for lessons worth keeping; clean lessons are written to `experience/auto/` and automatically consolidated into synthesized memory, while high-risk content is quarantined. Use `status` to check dynamic memory counts, and `sync` only when you choose to commit or push your private memory repo.
 
 ## MVP Flow
 
@@ -91,7 +90,7 @@ scan for secrets
   ↓
 store fresh memory in experience/auto or risky content in quarantine
   ↓
-consolidate fresh memory into synthesized context
+automatically consolidate fresh memory into synthesized context
   ↓
 recall task context while coding
 ```
@@ -100,7 +99,7 @@ Core commands:
 
 ```bash
 knowblazer start
-knowblazer consolidate
+knowblazer remember "Deploys need smoke tests"
 knowblazer recall "deploy new frontend"
 knowblazer status
 knowblazer sync
@@ -152,7 +151,7 @@ Core rules:
 - `inbox/` is for unreviewed candidate memory from explicit capture/import flows.
 - `daily/` is for short-term working notes.
 - `projects/` stores durable project facts, constraints, and operating notes.
-- `experience/` stores reusable engineering lessons; `experience/auto/` is the fresh-memory buffer and `experience/synthesized/` is the higher-signal consolidation layer.
+- `experience/` stores reusable engineering lessons; `experience/auto/` is the fresh-memory buffer and `experience/synthesized/` is the automatic higher-signal consolidation layer.
 - `quarantine/` is for sensitive or risky content and is never included in default recall.
 
 ## Privacy Model
@@ -171,7 +170,7 @@ Knowblazer should not automatically commit or push memory. `knowblazer sync` sca
 
 ## Project Status
 
-Knowblazer currently has a local-first CLI implementation for local use. The implementation covers `init`, `doctor`, `scan`, `capture`, `promote`, `recall`, `daily`, `project`, `sync`, `import specstory`, `adapter`, `index`, `mcp serve`, `review`, `dream`, and `backup`.
+Knowblazer currently has a local-first CLI implementation for local use. The implementation covers `init`, `doctor`, `scan`, `capture`, `promote`, `remember`, `consolidate`, `recall`, `daily`, `project`, `sync`, `import specstory`, `adapter`, `index`, `mcp serve`, `review`, `dream`, and `backup`.
 
 Current artifacts:
 

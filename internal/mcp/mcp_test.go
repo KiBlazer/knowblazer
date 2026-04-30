@@ -40,8 +40,7 @@ func TestServeClaudeFriendlyTools(t *testing.T) {
 			`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n" +
 			`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"knowblazer_context","arguments":{"task":"deploy","workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n" +
 			`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"knowblazer_remember","arguments":{"text":"Remember smoke tests"}}}` + "\n" +
-			`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"knowblazer_consolidate","arguments":{}}}` + "\n" +
-			`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"knowblazer_status","arguments":{"workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n",
+			`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"knowblazer_status","arguments":{"workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n",
 	)
 
 	var output bytes.Buffer
@@ -49,7 +48,7 @@ func TestServeClaudeFriendlyTools(t *testing.T) {
 		t.Fatalf("Serve() error = %v", err)
 	}
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	if len(lines) != 6 {
+	if len(lines) != 5 {
 		t.Fatalf("got %d responses: %s", len(lines), output.String())
 	}
 	checks := []struct {
@@ -61,10 +60,11 @@ func TestServeClaudeFriendlyTools(t *testing.T) {
 		{1, "knowblazer_consolidate"},
 		{2, "Use smoke tests."},
 		{3, "fresh"},
-		{4, "synthesized"},
-		{5, "claude_configured"},
-		{5, "fresh_auto_memories"},
-		{5, "synthesized_memories"},
+		{3, "consolidation"},
+		{3, "synthesized"},
+		{4, "claude_configured"},
+		{4, "fresh_auto_memories"},
+		{4, "synthesized_memories"},
 	}
 	for _, check := range checks {
 		if !strings.Contains(lines[check.line], check.want) {
