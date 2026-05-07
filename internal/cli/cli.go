@@ -28,6 +28,11 @@ import (
 	ksync "github.com/knowblazer/knowblazer/internal/sync"
 )
 
+var setupLookPath = func(tool string) bool {
+	_, err := exec.LookPath(tool)
+	return err == nil
+}
+
 func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 0 {
 		printUsage(stderr)
@@ -105,6 +110,114 @@ func runStart(args []string, stdout io.Writer, stderr io.Writer) int {
 	if project == "" {
 		project = inferProjectName(workspace)
 	}
+	tool := flagValue(args, "--tool")
+	if tool == "" {
+		return runStartAuto(args, repoRoot, workspace, project, stdout, stderr)
+	}
+	if tool == "codex" {
+		return runStartCodex(args, repoRoot, workspace, project, stdout, stderr)
+	}
+	if tool != "claude" {
+		fmt.Fprintf(stderr, "start failed: unsupported tool: %s\n", tool)
+		return 2
+	}
+	return runStartClaude(args, repoRoot, workspace, project, stdout, stderr)
+}
+
+func runStartAuto(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
+	claudeInstalled := setupLookPath("claude")
+	codexInstalled := setupLookPath("codex")
+	skipMCP := hasFlag(args, "--skip-mcp")
+	if skipMCP {
+		claudeInstalled = true
+		codexInstalled = true
+	}
+	if !claudeInstalled && !codexInstalled {
+		fmt.Fprintln(stderr, "start failed: no supported AI CLI found in PATH; install Claude Code or Codex CLI, or run `knowblazer start --skip-mcp` to write project instructions only")
+		return 1
+	}
+
+	var claudeResult setup.ClaudeResult
+	var codexResult setup.CodexResult
+	var claudeErr error
+	var codexErr error
+	if claudeInstalled {
+		result, err := setup.Claude(setup.ClaudeOptions{
+			RepoRoot:      repoRoot,
+			Workspace:     workspace,
+			Project:       project,
+			Scope:         flagValue(args, "--scope"),
+			SkipMCP:       skipMCP,
+			EnsureProject: true,
+		})
+		if err != nil {
+			claudeErr = err
+		} else {
+			claudeResult = result
+		}
+	}
+	if codexInstalled {
+		result, err := setup.Codex(setup.CodexOptions{
+			RepoRoot:      repoRoot,
+			Workspace:     workspace,
+			Project:       project,
+			SkipMCP:       skipMCP,
+			EnsureProject: true,
+		})
+		if err != nil {
+			codexErr = err
+		} else {
+			codexResult = result
+		}
+	}
+	if (claudeInstalled && claudeErr != nil) && (codexInstalled && codexErr != nil) {
+		fmt.Fprintf(stderr, "start failed: Claude Code setup failed: %v\n", claudeErr)
+		fmt.Fprintf(stderr, "start failed: Codex setup failed: %v\n", codexErr)
+		return 1
+	}
+
+	fmt.Fprintf(stdout, "Knowblazer is ready for %s in this project.\n", startToolLabel(claudeInstalled, codexInstalled))
+	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+	fmt.Fprintf(stdout, "Project: %s\n", project)
+	if claudeInstalled {
+		if claudeErr != nil {
+			fmt.Fprintf(stdout, "Claude Code MCP failed: %v\n", claudeErr)
+		} else {
+			printClaudeStartResult(stdout, claudeResult)
+		}
+	}
+	if codexInstalled {
+		if codexErr != nil {
+			fmt.Fprintf(stdout, "Codex MCP failed: %v\n", codexErr)
+		} else {
+			printCodexStartResult(stdout, codexResult)
+		}
+	}
+	fmt.Fprintf(stdout, "Next: run %s from this project.\n", startNextCommand(claudeInstalled, codexInstalled))
+	return 0
+}
+
+func runStartCodex(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
+	result, err := setup.Codex(setup.CodexOptions{
+		RepoRoot:      repoRoot,
+		Workspace:     workspace,
+		Project:       project,
+		SkipMCP:       hasFlag(args, "--skip-mcp"),
+		EnsureProject: true,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "start failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(stdout, "Knowblazer is ready for Codex in this project.")
+	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+	fmt.Fprintf(stdout, "Project: %s\n", project)
+	printCodexStartResult(stdout, result)
+	fmt.Fprintln(stdout, "Next: run `codex` from this project.")
+	return 0
+}
+
+func runStartClaude(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
 	result, err := setup.Claude(setup.ClaudeOptions{
 		RepoRoot:      repoRoot,
 		Workspace:     workspace,
@@ -120,6 +233,12 @@ func runStart(args []string, stdout io.Writer, stderr io.Writer) int {
 	fmt.Fprintln(stdout, "Knowblazer is ready for Claude Code in this project.")
 	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
 	fmt.Fprintf(stdout, "Project: %s\n", project)
+	printClaudeStartResult(stdout, result)
+	fmt.Fprintln(stdout, "Next: run `claude` from this project.")
+	return 0
+}
+
+func printClaudeStartResult(stdout io.Writer, result setup.ClaudeResult) {
 	fmt.Fprintf(stdout, "Claude instructions: %s\n", result.ClaudeMD)
 	if result.MCPConfigured {
 		fmt.Fprintln(stdout, "Claude Code MCP configured: knowblazer")
@@ -128,8 +247,37 @@ func runStart(args []string, stdout io.Writer, stderr io.Writer) int {
 	} else {
 		fmt.Fprintln(stdout, "Claude Code MCP already configured: knowblazer")
 	}
-	fmt.Fprintln(stdout, "Next: run `claude` from this project.")
-	return 0
+}
+
+func printCodexStartResult(stdout io.Writer, result setup.CodexResult) {
+	fmt.Fprintf(stdout, "Codex instructions: %s\n", result.AgentsMD)
+	if result.MCPConfigured {
+		fmt.Fprintln(stdout, "Codex MCP configured: knowblazer")
+	} else if result.MCPSkipped {
+		fmt.Fprintln(stdout, "Codex MCP skipped")
+	} else {
+		fmt.Fprintln(stdout, "Codex MCP already configured: knowblazer")
+	}
+}
+
+func startToolLabel(claude bool, codex bool) string {
+	if claude && codex {
+		return "Claude Code and Codex"
+	}
+	if codex {
+		return "Codex"
+	}
+	return "Claude Code"
+}
+
+func startNextCommand(claude bool, codex bool) string {
+	if claude && codex {
+		return "`claude` or `codex`"
+	}
+	if codex {
+		return "`codex`"
+	}
+	return "`claude`"
 }
 
 func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -151,8 +299,10 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
 	if project != "" {
 		fmt.Fprintf(stdout, "Project: %s\n", project)
+		fmt.Fprintf(stdout, "Project memory: %s\n", projectMemoryState(repoRoot, project))
 	} else {
 		fmt.Fprintln(stdout, "Project: not mapped")
+		fmt.Fprintln(stdout, "Project memory: unmapped")
 	}
 	claudeMD := ""
 	if workspace != "" {
@@ -163,6 +313,17 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "Claude instructions: %s\n", claudeMD)
 		} else {
 			fmt.Fprintln(stdout, "Claude instructions: not configured")
+		}
+	}
+	agentsMD := ""
+	if workspace != "" {
+		agentsMD = filepath.Join(workspace, "AGENTS.md")
+	}
+	if agentsMD != "" {
+		if content, err := os.ReadFile(agentsMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-CODEX-SETUP:START") {
+			fmt.Fprintf(stdout, "Codex instructions: %s\n", agentsMD)
+		} else {
+			fmt.Fprintln(stdout, "Codex instructions: not configured")
 		}
 	}
 	freshCount, err := consolidate.CountFresh(repoRoot)
@@ -186,9 +347,27 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 	return 0
 }
 
+func projectMemoryState(repoRoot string, project string) string {
+	if project == "" {
+		return "unmapped"
+	}
+	content, err := os.ReadFile(filepath.Join(repoRoot, "projects", project+".md"))
+	if os.IsNotExist(err) {
+		return "missing"
+	}
+	if err != nil {
+		return "unknown"
+	}
+	text := string(content)
+	if strings.Contains(text, "Add what this project is for.") || strings.Contains(text, "Add durable project context here.") {
+		return "scaffold"
+	}
+	return "active"
+}
+
 func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 || args[0] != "claude" {
-		fmt.Fprintln(stderr, "usage: knowblazer setup claude [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
+	if len(args) < 1 || (args[0] != "claude" && args[0] != "codex") {
+		fmt.Fprintln(stderr, "usage: knowblazer setup <claude|codex> [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
 		return 2
 	}
 	repoRoot, err := repoForArgs(args[1:])
@@ -199,12 +378,37 @@ func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
 	workspace := flagValue(args[1:], "--path")
 	project := flagValue(args[1:], "--project")
 	scope := flagValue(args[1:], "--scope")
+	if args[0] == "codex" {
+		result, err := setup.Codex(setup.CodexOptions{
+			RepoRoot:      repoRoot,
+			Workspace:     workspace,
+			Project:       project,
+			SkipMCP:       hasFlag(args[1:], "--skip-mcp"),
+			EnsureProject: true,
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "setup codex failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Codex instructions updated: %s\n", result.AgentsMD)
+		if result.ProjectMapped {
+			fmt.Fprintf(stdout, "Project mapping configured: %s\n", project)
+		}
+		if result.MCPConfigured {
+			fmt.Fprintln(stdout, "Codex MCP configured: knowblazer")
+		} else if result.MCPSkipped {
+			fmt.Fprintln(stdout, "Codex MCP skipped")
+		}
+		fmt.Fprintln(stdout, "Codex integration ready.")
+		return 0
+	}
 	result, err := setup.Claude(setup.ClaudeOptions{
-		RepoRoot:  repoRoot,
-		Workspace: workspace,
-		Project:   project,
-		Scope:     scope,
-		SkipMCP:   hasFlag(args[1:], "--skip-mcp"),
+		RepoRoot:      repoRoot,
+		Workspace:     workspace,
+		Project:       project,
+		Scope:         scope,
+		SkipMCP:       hasFlag(args[1:], "--skip-mcp"),
+		EnsureProject: true,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "setup claude failed: %v\n", err)
@@ -894,7 +1098,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "usage: knowblazer <command> [args]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Common commands:")
-	fmt.Fprintln(w, "  start [--repo <path>] [--path <dir>] [--skip-mcp]")
+	fmt.Fprintln(w, "  start [--repo <path>] [--path <dir>] [--tool <claude|codex>] [--skip-mcp]  auto-connect installed AI CLIs")
 	fmt.Fprintln(w, "  remember <file|text> [--repo <path>] [--daily]")
 	fmt.Fprintln(w, "  recall <task> [--repo <path>] [--project <name>] [--output <file>]")
 	fmt.Fprintln(w, "  status [--repo <path>] [--path <dir>]")

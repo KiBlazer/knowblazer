@@ -93,7 +93,7 @@ func freshMemories(repoRoot string) ([]memory, error) {
 			path:    path,
 			relPath: filepath.ToSlash(rel),
 			title:   title(text),
-			body:    firstMeaningfulLine(stripFrontMatter(text)),
+			body:    boundedBody(stripFrontMatter(text)),
 		})
 		return nil
 	})
@@ -125,14 +125,17 @@ captured_at: "%s"
 	fmt.Fprintf(&out, "# Synthesized Memory %s\n\n", capturedAt.Format("2006-01-02"))
 	fmt.Fprintln(&out, "Automatically consolidated from fresh memory signals.")
 	fmt.Fprintln(&out)
-	fmt.Fprintln(&out, "## Signals")
+	fmt.Fprintln(&out, "## Source Signals")
 	fmt.Fprintln(&out)
 	for _, item := range items {
-		line := item.body
-		if line == "" {
-			line = item.title
+		body := item.body
+		if body == "" {
+			body = item.title
 		}
-		fmt.Fprintf(&out, "- `%s`: %s\n", item.relPath, line)
+		fmt.Fprintf(&out, "### %s\n\n", item.title)
+		fmt.Fprintf(&out, "Source: `%s`\n\n", item.relPath)
+		fmt.Fprintln(&out, body)
+		fmt.Fprintln(&out)
 	}
 	return out.Bytes()
 }
@@ -177,19 +180,32 @@ func stripFrontMatter(content string) string {
 	return content[end+8:]
 }
 
-func firstMeaningfulLine(content string) string {
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "#") {
+func boundedBody(content string) string {
+	const maxLines = 8
+	const maxChars = 800
+
+	var lines []string
+	started := false
+	for _, raw := range strings.Split(content, "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "---") {
 			continue
 		}
-		if line == "" || strings.HasPrefix(line, "---") {
+		if line == "" {
+			if started {
+				break
+			}
 			continue
 		}
-		if len(line) > 180 {
-			return line[:180] + "..."
+		started = true
+		lines = append(lines, line)
+		if len(lines) >= maxLines {
+			break
 		}
-		return line
 	}
-	return ""
+	body := strings.Join(lines, "\n")
+	if len(body) > maxChars {
+		return body[:maxChars] + "\n[truncated]"
+	}
+	return body
 }

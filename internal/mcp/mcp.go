@@ -156,17 +156,19 @@ func directToolResult(repoRoot string, id any, name string, params map[string]an
 		if text == "" {
 			return fail(id, "text is required")
 		}
+		project := resolveProject(repoRoot, stringParam(params, "workspace"), stringParam(params, "project"))
 		if boolParam(params, "daily") {
 			path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
 			if err != nil {
 				return fail(id, err.Error())
 			}
-			return ok(id, map[string]any{"path": path, "status": "daily"})
+			return ok(id, map[string]any{"path": path, "status": "daily", "project": project})
 		}
 		result, err := rememberText(repoRoot, text)
 		if err != nil {
 			return fail(id, err.Error())
 		}
+		result["project"] = project
 		return ok(id, result)
 	case "knowblazer_status":
 		status, err := status(repoRoot, stringParam(params, "workspace"))
@@ -212,14 +214,16 @@ func directToolResult(repoRoot string, id any, name string, params map[string]an
 
 func toolDefinitions() []map[string]any {
 	return []map[string]any{
-		toolDefinition("knowblazer_context", "Generate dynamic task context from Knowblazer memory.", map[string]any{
+		toolDefinition("knowblazer_context", "Generate dynamic task context from Knowblazer memory. Pass workspace when available so project mapping resolves correctly.", map[string]any{
 			"task":      stringSchema("Task description to generate context for."),
 			"project":   stringSchema("Optional project memory name."),
 			"workspace": stringSchema("Optional workspace path used to resolve project mapping."),
 		}, []string{"task"}),
-		toolDefinition("knowblazer_remember", "Capture a fresh reusable memory signal or daily note.", map[string]any{
-			"text":  stringSchema("Lesson text to remember."),
-			"daily": map[string]any{"type": "boolean", "description": "Save as a daily note instead of fresh automatic memory."},
+		toolDefinition("knowblazer_remember", "Capture a fresh reusable memory signal or daily note. Pass workspace or project when available for project visibility.", map[string]any{
+			"text":      stringSchema("Lesson text to remember."),
+			"project":   stringSchema("Optional project memory name."),
+			"workspace": stringSchema("Optional workspace path used to resolve project mapping."),
+			"daily":     map[string]any{"type": "boolean", "description": "Save as a daily note instead of fresh automatic memory."},
 		}, []string{"text"}),
 		toolDefinition("knowblazer_status", "Check Knowblazer memory connection and dynamic memory status.", map[string]any{
 			"workspace": stringSchema("Optional workspace path."),
@@ -293,12 +297,7 @@ func status(repoRoot string, workspace string) (map[string]any, error) {
 	if workspace == "" {
 		workspace, _ = os.Getwd()
 	}
-	project := ""
-	if workspace != "" {
-		if mapped, ok, err := projectmap.Resolve(repoRoot, workspace); err == nil && ok {
-			project = mapped
-		}
-	}
+	project := resolveProject(repoRoot, workspace, "")
 	candidates, err := review.List(repoRoot)
 	if err != nil {
 		return nil, err
@@ -320,11 +319,47 @@ func status(repoRoot string, workspace string) (map[string]any, error) {
 		"repo":                 repoRoot,
 		"project":              project,
 		"workspace":            workspace,
+		"project_memory":       projectMemoryState(repoRoot, project),
 		"claude_configured":    configured,
 		"fresh_auto_memories":  freshCount,
 		"synthesized_memories": synthesizedCount,
 		"inbox_candidates":     len(candidates),
 	}, nil
+}
+
+func resolveProject(repoRoot string, workspace string, project string) string {
+	if project != "" {
+		return project
+	}
+	if workspace == "" {
+		workspace, _ = os.Getwd()
+	}
+	if workspace == "" {
+		return ""
+	}
+	mapped, ok, err := projectmap.Resolve(repoRoot, workspace)
+	if err != nil || !ok {
+		return ""
+	}
+	return mapped
+}
+
+func projectMemoryState(repoRoot string, project string) string {
+	if project == "" {
+		return "unmapped"
+	}
+	content, err := os.ReadFile(filepath.Join(repoRoot, "projects", project+".md"))
+	if os.IsNotExist(err) {
+		return "missing"
+	}
+	if err != nil {
+		return "unknown"
+	}
+	text := string(content)
+	if strings.Contains(text, "Add what this project is for.") || strings.Contains(text, "Add durable project context here.") {
+		return "scaffold"
+	}
+	return "active"
 }
 
 func boolParam(params map[string]any, name string) bool {

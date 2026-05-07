@@ -39,7 +39,7 @@ func TestServeClaudeFriendlyTools(t *testing.T) {
 			`{"jsonrpc":"2.0","method":"notifications/initialized"}` + "\n" +
 			`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n" +
 			`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"knowblazer_context","arguments":{"task":"deploy","workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n" +
-			`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"knowblazer_remember","arguments":{"text":"Remember smoke tests"}}}` + "\n" +
+			`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"knowblazer_remember","arguments":{"text":"Remember smoke tests","workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n" +
 			`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"knowblazer_status","arguments":{"workspace":"` + filepath.ToSlash(workspace) + `"}}}` + "\n",
 	)
 
@@ -62,9 +62,11 @@ func TestServeClaudeFriendlyTools(t *testing.T) {
 		{3, "fresh"},
 		{3, "consolidation"},
 		{3, "synthesized"},
+		{3, "workspace"},
 		{4, "claude_configured"},
 		{4, "fresh_auto_memories"},
 		{4, "synthesized_memories"},
+		{4, "project_memory"},
 	}
 	for _, check := range checks {
 		if !strings.Contains(lines[check.line], check.want) {

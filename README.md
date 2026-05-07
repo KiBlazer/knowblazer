@@ -54,15 +54,23 @@ go install github.com/knowblazer/knowblazer/cmd/knowblazer@latest
 
 ## Quick Start
 
-Claude Code is the default product path:
+Start from any project directory:
 
 ```bash
 cd /path/to/project
 knowblazer start
-claude
 ```
 
-`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, writes `CLAUDE.md`, and connects Claude Code through MCP. After that, Claude can call Knowblazer for context automatically.
+`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and connects the AI coding CLIs it finds. If Claude Code is installed, it writes `CLAUDE.md` and connects Claude through MCP. If Codex CLI is installed, it writes `AGENTS.md` and connects Codex through MCP.
+
+Then open whichever connected tool you use:
+
+```bash
+claude
+codex
+```
+
+To configure only one tool, pass `--tool claude` or `--tool codex`.
 
 Daily use:
 
@@ -110,6 +118,7 @@ Advanced commands:
 ```bash
 knowblazer init ~/knowblazer-notes
 knowblazer setup claude --repo ~/knowblazer-notes --project my-project --path .
+knowblazer setup codex --repo ~/knowblazer-notes --project my-project --path .
 knowblazer doctor --repo ~/knowblazer-notes
 knowblazer scan ~/knowblazer-notes
 knowblazer review list --repo ~/knowblazer-notes

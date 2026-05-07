@@ -20,11 +20,15 @@ Use the recall pack as task context. Do not include quarantine content.
 `,
 	"codex": `# Codex Knowblazer Adapter
 
-Generate task context with:
+Recommended one-command setup:
+
+    knowblazer setup codex --repo "<repo>"
+
+This configures Codex MCP and writes project instructions to AGENTS.md. If MCP is unavailable, fall back to:
 
     knowblazer recall --task "<task>" --repo "<repo>"
 
-Use the resulting Markdown as local project memory.
+Use the resulting Markdown as task context. Do not include quarantine content.
 `,
 	"gemini": `# Gemini CLI Knowblazer Adapter
 
