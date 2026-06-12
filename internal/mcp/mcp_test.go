@@ -97,7 +97,7 @@ func TestServeRecallRequest(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 	result, _ := resp.Result.(string)
-	if resp.Error != "" || !strings.Contains(result, "Prefer tests.") {
+	if resp.Error != nil || !strings.Contains(result, "Prefer tests.") {
 		t.Fatalf("response = %#v", resp)
 	}
 }
