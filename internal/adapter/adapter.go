@@ -42,10 +42,31 @@ Add this workflow to project rules:
 
     Run knowblazer recall --task "<task>" --repo "<repo>" and use the Markdown as task context.
 `,
+	"antigravity": `# Antigravity Knowblazer Adapter
+
+Add this to your ~/.gemini/antigravity/mcp_config.json:
+
+{
+  "mcpServers": {
+    "knowblazer": {
+      "command": "knowblazer",
+      "args": ["mcp", "serve", "--repo", "<repo>"]
+    }
+  }
+}
+
+If MCP is unavailable, you can manually generate recall packs for tasks:
+
+    knowblazer recall --task "<task>" --repo "<repo>"
+`,
 }
 
 func Generate(tool string, repoRoot string) ([]byte, error) {
-	template, ok := supported[strings.ToLower(tool)]
+	t := strings.ToLower(tool)
+	if t == "agy" {
+		t = "antigravity"
+	}
+	template, ok := supported[t]
 	if !ok {
 		return nil, fmt.Errorf("unsupported adapter: %s", tool)
 	}
@@ -53,5 +74,5 @@ func Generate(tool string, repoRoot string) ([]byte, error) {
 }
 
 func Tools() []string {
-	return []string{"claude", "codex", "gemini", "cursor"}
+	return []string{"claude", "codex", "gemini", "cursor", "antigravity", "agy"}
 }
