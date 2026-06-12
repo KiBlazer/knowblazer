@@ -26,11 +26,16 @@ type Request struct {
 	Params  map[string]any `json:"params,omitempty"`
 }
 
+type Error struct {
+	Code    int64  `json:"code"`
+	Message string `json:"message"`
+}
+
 type Response struct {
 	JSONRPC string `json:"jsonrpc,omitempty"`
 	ID      any    `json:"id,omitempty"`
 	Result  any    `json:"result,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Error   *Error `json:"error,omitempty"`
 }
 
 func Serve(repoRoot string, in io.Reader, out io.Writer) error {
@@ -39,7 +44,7 @@ func Serve(repoRoot string, in io.Reader, out io.Writer) error {
 	for scanner.Scan() {
 		var req Request
 		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
-			_ = encoder.Encode(Response{JSONRPC: "2.0", Error: err.Error()})
+			_ = encoder.Encode(Response{JSONRPC: "2.0", Error: &Error{Code: -32700, Message: err.Error()}})
 			continue
 		}
 		resp := handle(repoRoot, req)
@@ -54,6 +59,9 @@ func Serve(repoRoot string, in io.Reader, out io.Writer) error {
 }
 
 func handle(repoRoot string, req Request) *Response {
+	if req.ID == nil || strings.HasPrefix(req.Method, "notifications/") {
+		return nil
+	}
 	switch req.Method {
 	case "initialize":
 		return ok(req.ID, map[string]any{
@@ -89,7 +97,7 @@ func handle(repoRoot string, req Request) *Response {
 	case "knowblazer_consolidate":
 		return directToolResult(repoRoot, req.ID, req.Method, req.Params)
 	default:
-		return fail(req.ID, fmt.Sprintf("unknown method: %s", req.Method))
+		return failWithCode(req.ID, -32601, fmt.Sprintf("unknown method: %s", req.Method))
 	}
 }
 
@@ -98,7 +106,11 @@ func ok(id any, result any) *Response {
 }
 
 func fail(id any, message string) *Response {
-	return &Response{JSONRPC: "2.0", ID: id, Error: message}
+	return failWithCode(id, -32603, message)
+}
+
+func failWithCode(id any, code int64, message string) *Response {
+	return &Response{JSONRPC: "2.0", ID: id, Error: &Error{Code: code, Message: message}}
 }
 
 func callTool(repoRoot string, req Request) *Response {
@@ -108,7 +120,7 @@ func callTool(repoRoot string, req Request) *Response {
 		return fail(req.ID, "tool name is required")
 	}
 	result := directToolResult(repoRoot, req.ID, name, args)
-	if result == nil || result.Error != "" {
+	if result == nil || result.Error != nil {
 		return result
 	}
 	text, ok := result.Result.(string)
