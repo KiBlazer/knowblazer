@@ -185,7 +185,7 @@ Knowblazer 坚持 **本地优先**。
 
 ## 系统对比 (Knowblazer vs 其他记忆方案)
 
-| 特性 | Knowblazer | Nocturne Memory / 传统 MCP 记忆服务 |
+| 特性 | Knowblazer | SQLite-based / 传统 MCP 记忆服务 |
 | :--- | :--- | :--- |
 | **存储介质** | **纯文本 Markdown 文件夹**（开发者最爱） | SQLite / PostgreSQL 等数据库（黑盒） |
 | **Git 友好度** | **天然支持**（可随时 `git diff` / `commit` / 冲突解决） | 较差（无法直接 diff 数据库二进制） |

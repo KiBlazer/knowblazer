@@ -230,9 +230,9 @@ Current artifacts:
 - Automatic consolidation should turn fresh memory into higher-signal context.
 - Privacy is a product requirement, not an optional plugin.
 
-## Comparison: Knowblazer vs. Nocturne Memory / Others
+## Comparison: Knowblazer vs. SQLite-based / Others
 
-| Feature             | Knowblazer (Markdown/Git)   | Nocturne Memory / SQLite-based |
+| Feature             | Knowblazer (Markdown/Git)   | SQLite-based / Others          |
 | :------------------ | :-------------------------- | :----------------------------- |
 | **Storage Medium**  | **Plaintext Markdown files** | Relational Database (Black Box)|
 | **Git Integration** | **Native** (`git diff` & branch commits) | None (Binary DB format)        |
