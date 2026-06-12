@@ -76,9 +76,14 @@ cd /path/to/project
 knowblazer start
 ```
 
-`knowblazer start` 会在 `~/knowblazer-notes` 创建或复用您的记忆库，根据当前目录名推断项目名称，并自动连接检测到的 AI 编程 CLI 工具。
-*   如果检测到 **Claude Code**，它将写入并配置 `CLAUDE.md` 以通过 MCP 连接。
-*   如果检测到 **Codex CLI**，它将写入 `AGENTS.md` 以通过 MCP 连接。
+`knowblazer start` 会在 `~/knowblazer-notes` 创建或复用您的记忆库，根据当前目录名推断项目名称，并自动连接检测到的 AI 编程 CLI 工具：
+*   **Claude Code**：自动写入 `CLAUDE.md` 策略文件，并自动在后台配置 MCP 服务。
+*   **Codex CLI**：自动写入 `AGENTS.md` 策略文件，并自动在后台配置 MCP 服务。
+
+对于其他不支持命令行自动注册 MCP 的集成开发环境（IDE）与工具，您可以通过 `adapter` 指令生成复制即用的配置片段：
+*   **Cursor**：运行 `knowblazer adapter cursor`
+*   **Antigravity (agy)**：运行 `knowblazer adapter agy`
+*   **Gemini CLI**：运行 `knowblazer adapter gemini`
 
 然后直接启动您的 AI 客户端：
 

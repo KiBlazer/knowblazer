@@ -70,16 +70,22 @@ cd /path/to/project
 knowblazer start
 ```
 
-`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and connects the AI coding CLIs it finds. If Claude Code is installed, it writes `CLAUDE.md` and connects Claude through MCP. If Codex CLI is installed, it writes `AGENTS.md` and connects Codex through MCP.
+`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and automatically connects supported AI coding CLIs:
+*   **Claude Code**: Writes instructions to `CLAUDE.md` and configures MCP automatically.
+*   **Codex CLI**: Writes instructions to `AGENTS.md` and configures MCP automatically.
+
+For IDEs and other tools that do not support command-line MCP registration, you can generate copy-paste configuration snippets using the `adapter` command:
+*   **Cursor**: Run `knowblazer adapter cursor`
+*   **Antigravity (agy)**: Run `knowblazer adapter agy`
+*   **Gemini CLI**: Run `knowblazer adapter gemini`
 
 Then open whichever connected tool you use:
 
 ```bash
 claude
+# or
 codex
 ```
-
-To configure only one tool, pass `--tool claude` or `--tool codex`.
 
 Daily use:
 
