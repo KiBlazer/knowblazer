@@ -45,16 +45,24 @@ AI 辅助编程正逐渐分散到多个不同的工具中。这台工具可能�
 
 ## 安装
 
-从本地仓库进行开发与安装：
+### 1. 快捷一键安装 (Mac & Linux)
+直接下载并安装预编译二进制文件，无需本地安装 Go 环境：
 
 ```bash
-make install
+curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | sh
 ```
 
-发布后，您也可以直接通过以下方式进行全局安装：
+### 2. 源码编译安装 (Go 开发者)
+如果您拥有 Go 环境，可直接通过 `go install` 安装最新版：
 
 ```bash
 go install github.com/KiBlazer/knowblazer/cmd/knowblazer@latest
+```
+
+或克隆仓库后在本地编译安装：
+
+```bash
+make install
 ```
 
 ---

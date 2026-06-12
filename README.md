@@ -41,17 +41,24 @@ Knowblazer is not:
 
 ## Installation
 
-Knowblazer is not published to GitHub yet. For local development from this
-repository:
+### 1. Quick Install (Mac & Linux)
+Install the precompiled binary with a single command (no Go runtime required):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | sh
+```
+
+### 2. From Source (Go developers)
+If you prefer compiling from source, make sure you have Go installed, then run:
+
+```bash
+go install github.com/KiBlazer/knowblazer/cmd/knowblazer@latest
+```
+
+Or clone the repo locally and build:
 
 ```bash
 make install
-```
-
-After the repository is published, the release install path will be:
-
-```bash
-go install github.com/knowblazer/knowblazer/cmd/knowblazer@latest
 ```
 
 ## Quick Start
