@@ -1,5 +1,7 @@
 # Knowblazer
 
+[English](./README.md) | [中文](./README_ZH.md)
+
 Local-first dynamic engineering memory for AI coding.
 
 Knowblazer is an open-source tool for maintaining your own private engineering memory repo. It collects useful AI coding signals, scans them, stores fresh memory, consolidates them into higher-signal Markdown memory, and feeds the best current context back to Claude Code, Codex, Gemini, Cursor, and other AI coding tools.
@@ -82,6 +84,24 @@ knowblazer sync
 ```
 
 Use `remember` for lessons worth keeping; clean lessons are written to `experience/auto/` and automatically consolidated into synthesized memory, while high-risk content is quarantined. Use `status` to check dynamic memory counts, and `sync` only when you choose to commit or push your private memory repo.
+
+## MCP Configuration
+
+To integrate Knowblazer's MCP server with **Cursor**, **Claude Desktop**, or other compatible tools, add the following to your MCP settings file:
+
+```json
+{
+  "mcpServers": {
+    "knowblazer": {
+      "command": "knowblazer",
+      "args": ["serve"],
+      "env": {
+        "KNOWBLAZER_NOTES_PATH": "/path/to/your/knowblazer-notes"
+      }
+    }
+  }
+}
+```
 
 ## MVP Flow
 
@@ -196,6 +216,16 @@ Current artifacts:
 - Raw AI conversations are inputs, not durable synthesized memory by default.
 - Automatic consolidation should turn fresh memory into higher-signal context.
 - Privacy is a product requirement, not an optional plugin.
+
+## Comparison: Knowblazer vs. Nocturne Memory / Others
+
+| Feature             | Knowblazer (Markdown/Git)   | Nocturne Memory / SQLite-based |
+| :------------------ | :-------------------------- | :----------------------------- |
+| **Storage Medium**  | **Plaintext Markdown files** | Relational Database (Black Box)|
+| **Git Integration** | **Native** (`git diff` & branch commits) | None (Binary DB format)        |
+| **Secret Scanning** | **Active Scan & Quarantine** | None                           |
+| **System Footprint**| **Zero** (Local CLI execution only) | Daemon servers & dashboard web servers |
+| **Deployment**      | **Single Go binary** (zero dependency)| Multi-runtime environment setup|
 
 ## Relationship To SpecStory
 
