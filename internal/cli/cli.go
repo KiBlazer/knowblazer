@@ -127,20 +127,33 @@ func runStart(args []string, stdout io.Writer, stderr io.Writer) int {
 func runStartAuto(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
 	claudeInstalled := setupLookPath("claude")
 	codexInstalled := setupLookPath("codex")
+	home, _ := os.UserHomeDir()
+	antigravityConfigDir := filepath.Join(home, ".gemini", "antigravity")
+	antigravityConfigDir2 := filepath.Join(home, ".gemini", "config")
+	antigravityInstalled := false
+	if info, err := os.Stat(antigravityConfigDir); err == nil && info.IsDir() {
+		antigravityInstalled = true
+	} else if info, err := os.Stat(antigravityConfigDir2); err == nil && info.IsDir() {
+		antigravityInstalled = true
+	}
+
 	skipMCP := hasFlag(args, "--skip-mcp")
 	if skipMCP {
 		claudeInstalled = true
 		codexInstalled = true
 	}
-	if !claudeInstalled && !codexInstalled {
-		fmt.Fprintln(stderr, "start failed: no supported AI CLI found in PATH; install Claude Code or Codex CLI, or run `knowblazer start --skip-mcp` to write project instructions only")
+	if !claudeInstalled && !codexInstalled && !antigravityInstalled {
+		fmt.Fprintln(stderr, "start failed: no supported AI tool found; install Claude Code, Codex CLI, or Antigravity, or run `knowblazer start --skip-mcp` to write project instructions only")
 		return 1
 	}
 
 	var claudeResult setup.ClaudeResult
 	var codexResult setup.CodexResult
+	var antigravityResult setup.AntigravityResult
 	var claudeErr error
 	var codexErr error
+	var antigravityErr error
+
 	if claudeInstalled {
 		result, err := setup.Claude(setup.ClaudeOptions{
 			RepoRoot:      repoRoot,
@@ -170,13 +183,45 @@ func runStartAuto(args []string, repoRoot string, workspace string, project stri
 			codexResult = result
 		}
 	}
-	if (claudeInstalled && claudeErr != nil) && (codexInstalled && codexErr != nil) {
-		fmt.Fprintf(stderr, "start failed: Claude Code setup failed: %v\n", claudeErr)
-		fmt.Fprintf(stderr, "start failed: Codex setup failed: %v\n", codexErr)
+	if antigravityInstalled {
+		result, err := setup.Antigravity(setup.AntigravityOptions{
+			RepoRoot:  repoRoot,
+			Workspace: workspace,
+			Project:   project,
+			SkipMCP:   skipMCP,
+		})
+		if err != nil {
+			antigravityErr = err
+		} else {
+			antigravityResult = result
+		}
+	}
+
+	allFailed := true
+	if claudeInstalled && claudeErr == nil {
+		allFailed = false
+	}
+	if codexInstalled && codexErr == nil {
+		allFailed = false
+	}
+	if antigravityInstalled && antigravityErr == nil {
+		allFailed = false
+	}
+
+	if allFailed {
+		if claudeInstalled && claudeErr != nil {
+			fmt.Fprintf(stderr, "start failed: Claude Code setup failed: %v\n", claudeErr)
+		}
+		if codexInstalled && codexErr != nil {
+			fmt.Fprintf(stderr, "start failed: Codex setup failed: %v\n", codexErr)
+		}
+		if antigravityInstalled && antigravityErr != nil {
+			fmt.Fprintf(stderr, "start failed: Antigravity setup failed: %v\n", antigravityErr)
+		}
 		return 1
 	}
 
-	fmt.Fprintf(stdout, "Knowblazer is ready for %s in this project.\n", startToolLabel(claudeInstalled, codexInstalled))
+	fmt.Fprintf(stdout, "Knowblazer is ready for %s in this project.\n", startToolLabel(claudeInstalled, codexInstalled, antigravityInstalled))
 	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
 	fmt.Fprintf(stdout, "Project: %s\n", project)
 	if claudeInstalled {
@@ -193,7 +238,20 @@ func runStartAuto(args []string, repoRoot string, workspace string, project stri
 			printCodexStartResult(stdout, codexResult)
 		}
 	}
-	fmt.Fprintf(stdout, "Next: run %s from this project.\n", startNextCommand(claudeInstalled, codexInstalled))
+	if antigravityInstalled {
+		if antigravityErr != nil {
+			fmt.Fprintf(stdout, "Antigravity MCP failed: %v\n", antigravityErr)
+		} else {
+			if antigravityResult.MCPConfigured {
+				fmt.Fprintln(stdout, "Antigravity MCP configured: knowblazer")
+			} else if antigravityResult.MCPSkipped {
+				fmt.Fprintln(stdout, "Antigravity MCP skipped")
+			} else {
+				fmt.Fprintln(stdout, "Antigravity MCP already configured: knowblazer")
+			}
+		}
+	}
+	fmt.Fprintf(stdout, "Next: run %s from this project.\n", startNextCommand(claudeInstalled, codexInstalled, antigravityInstalled))
 	return 0
 }
 
@@ -260,24 +318,50 @@ func printCodexStartResult(stdout io.Writer, result setup.CodexResult) {
 	}
 }
 
-func startToolLabel(claude bool, codex bool) string {
-	if claude && codex {
-		return "Claude Code and Codex"
+func startToolLabel(claude bool, codex bool, antigravity bool) string {
+	var list []string
+	if claude {
+		list = append(list, "Claude Code")
 	}
 	if codex {
-		return "Codex"
+		list = append(list, "Codex")
 	}
-	return "Claude Code"
+	if antigravity {
+		list = append(list, "Antigravity")
+	}
+	if len(list) == 0 {
+		return "AI tools"
+	}
+	if len(list) == 1 {
+		return list[0]
+	}
+	if len(list) == 2 {
+		return list[0] + " and " + list[1]
+	}
+	return list[0] + ", " + list[1] + " and " + list[2]
 }
 
-func startNextCommand(claude bool, codex bool) string {
-	if claude && codex {
-		return "`claude` or `codex`"
+func startNextCommand(claude bool, codex bool, antigravity bool) string {
+	var parts []string
+	if claude {
+		parts = append(parts, "`claude`")
 	}
 	if codex {
-		return "`codex`"
+		parts = append(parts, "`codex`")
 	}
-	return "`claude`"
+	if antigravity {
+		parts = append(parts, "open Antigravity")
+	}
+	if len(parts) == 0 {
+		return "your AI tool"
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	if len(parts) == 2 {
+		return parts[0] + " or " + parts[1]
+	}
+	return parts[0] + ", " + parts[1] + ", or " + parts[2]
 }
 
 func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -366,8 +450,8 @@ func projectMemoryState(repoRoot string, project string) string {
 }
 
 func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 || (args[0] != "claude" && args[0] != "codex") {
-		fmt.Fprintln(stderr, "usage: knowblazer setup <claude|codex> [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
+	if len(args) < 1 || (args[0] != "claude" && args[0] != "codex" && args[0] != "antigravity" && args[0] != "agy") {
+		fmt.Fprintln(stderr, "usage: knowblazer setup <claude|codex|antigravity> [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
 		return 2
 	}
 	repoRoot, err := repoForArgs(args[1:])
@@ -400,6 +484,27 @@ func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintln(stdout, "Codex MCP skipped")
 		}
 		fmt.Fprintln(stdout, "Codex integration ready.")
+		return 0
+	}
+	if args[0] == "antigravity" || args[0] == "agy" {
+		result, err := setup.Antigravity(setup.AntigravityOptions{
+			RepoRoot:  repoRoot,
+			Workspace: workspace,
+			Project:   project,
+			SkipMCP:   hasFlag(args[1:], "--skip-mcp"),
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "setup antigravity failed: %v\n", err)
+			return 1
+		}
+		if result.MCPConfigured {
+			fmt.Fprintln(stdout, "Antigravity MCP configured: knowblazer")
+		} else if result.MCPSkipped {
+			fmt.Fprintln(stdout, "Antigravity MCP skipped")
+		} else {
+			fmt.Fprintln(stdout, "Antigravity MCP already configured: knowblazer")
+		}
+		fmt.Fprintln(stdout, "Antigravity integration ready.")
 		return 0
 	}
 	result, err := setup.Claude(setup.ClaudeOptions{

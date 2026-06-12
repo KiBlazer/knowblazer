@@ -70,13 +70,13 @@ cd /path/to/project
 knowblazer start
 ```
 
-`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and automatically connects supported AI coding CLIs:
+`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and automatically connects supported AI coding tools:
 *   **Claude Code**: Writes instructions to `CLAUDE.md` and configures MCP automatically.
 *   **Codex CLI**: Writes instructions to `AGENTS.md` and configures MCP automatically.
+*   **Antigravity (agy)**: Dynamically registers the MCP server in `mcp_config.json` automatically.
 
-For IDEs and other tools that do not support command-line MCP registration, you can generate copy-paste configuration snippets using the `adapter` command:
+For IDEs and other tools that do not support automatic command-line registration, you can generate copy-paste configuration snippets using the `adapter` command:
 *   **Cursor**: Run `knowblazer adapter cursor`
-*   **Antigravity (agy)**: Run `knowblazer adapter agy`
 *   **Gemini CLI**: Run `knowblazer adapter gemini`
 
 Then open whichever connected tool you use:

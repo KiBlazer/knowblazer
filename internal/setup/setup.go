@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -305,4 +306,77 @@ func configureCodexMCP(repoRoot string) (bool, bool, error) {
 		return false, false, fmt.Errorf("codex mcp add failed: %v\n%s", err, strings.TrimSpace(string(output)))
 	}
 	return true, false, nil
+}
+
+type AntigravityOptions struct {
+	RepoRoot  string
+	Workspace string
+	Project   string
+	SkipMCP   bool
+}
+
+type AntigravityResult struct {
+	MCPConfigured bool
+	MCPSkipped    bool
+}
+
+func Antigravity(opts AntigravityOptions) (AntigravityResult, error) {
+	if err := repo.MustBeRepo(opts.RepoRoot); err != nil {
+		return AntigravityResult{}, err
+	}
+	if opts.SkipMCP {
+		return AntigravityResult{MCPSkipped: true}, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return AntigravityResult{}, err
+	}
+
+	paths := []string{
+		filepath.Join(home, ".gemini", "antigravity", "mcp_config.json"),
+		filepath.Join(home, ".gemini", "config", "mcp_config.json"),
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		executable = "knowblazer"
+	}
+
+	serverConfig := map[string]any{
+		"command": executable,
+		"args":    []string{"mcp", "serve", "--repo", opts.RepoRoot},
+	}
+
+	configured := false
+	for _, p := range paths {
+		data := make(map[string]any)
+		if content, err := os.ReadFile(p); err == nil {
+			_ = json.Unmarshal(content, &data)
+		}
+
+		mcpServers, ok := data["mcpServers"].(map[string]any)
+		if !ok {
+			mcpServers = make(map[string]any)
+			data["mcpServers"] = mcpServers
+		}
+
+		mcpServers["knowblazer"] = serverConfig
+
+		dir := filepath.Dir(p)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			continue
+		}
+
+		content, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			continue
+		}
+		content = append(content, '\n')
+		if err := os.WriteFile(p, content, 0644); err == nil {
+			configured = true
+		}
+	}
+
+	return AntigravityResult{MCPConfigured: configured}, nil
 }
