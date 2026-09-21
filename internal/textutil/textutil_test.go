@@ -17,11 +17,11 @@ func TestTokenize(t *testing.T) {
 		},
 		{
 			input: "Plane部署",
-			want:  []string{"plane", "部署"},
+			want:  []string{"plane", "部署", "部", "署"},
 		},
 		{
 			input: "排查Docker问题",
-			want:  []string{"docker", "排查", "问题"},
+			want:  []string{"docker", "排查", "排", "查", "问题", "问", "题"},
 		},
 	}
 

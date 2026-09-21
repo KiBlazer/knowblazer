@@ -410,6 +410,15 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 			fmt.Fprintln(stdout, "Codex instructions: not configured")
 		}
 	}
+	geminiMD := ""
+	if workspace != "" {
+		geminiMD = filepath.Join(workspace, "GEMINI.md")
+	}
+	if geminiMD != "" {
+		if content, err := os.ReadFile(geminiMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-") {
+			fmt.Fprintf(stdout, "Gemini instructions: %s\n", geminiMD)
+		}
+	}
 	freshCount, err := consolidate.CountFresh(repoRoot)
 	if err != nil {
 		fmt.Fprintf(stderr, "status failed: %v\n", err)

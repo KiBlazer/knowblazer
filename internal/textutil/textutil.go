@@ -51,11 +51,12 @@ func Tokenize(text string) []string {
 					out = append(out, bg)
 				}
 			}
-		} else if n == 1 {
-			single := string(cjkBuf)
-			if !seen[single] {
-				seen[single] = true
-				out = append(out, single)
+		}
+		for i := 0; i < n; i++ {
+			ug := string(cjkBuf[i])
+			if !seen[ug] {
+				seen[ug] = true
+				out = append(out, ug)
 			}
 		}
 		cjkBuf = cjkBuf[:0]

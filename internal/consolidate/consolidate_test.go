@@ -1,6 +1,7 @@
 package consolidate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,5 +168,37 @@ func TestRunPreservesMultiParagraphMemoryWithEmptyLines(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("synthesized memory missing %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestRunTruncatesWhenLineLimitExceeded(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(t.TempDir(), "long.md")
+	var b strings.Builder
+	b.WriteString("# Long note\n\n")
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&b, "Line item number %d\n", i)
+	}
+	if err := os.WriteFile(source, []byte(b.String()), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	if _, err := capture.MarkdownAuto(root, source); err != nil {
+		t.Fatalf("MarkdownAuto() error = %v", err)
+	}
+
+	result, err := Run(root)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	textBytes, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("read synthesized: %v", err)
+	}
+	text := string(textBytes)
+	if !strings.Contains(text, "[truncated]") {
+		t.Fatalf("synthesized memory missing truncation marker for 40 lines:\n%s", text)
 	}
 }

@@ -186,7 +186,9 @@ func boundedBody(content string) string {
 
 	var lines []string
 	started := false
-	for _, raw := range strings.Split(content, "\n") {
+	truncated := false
+	rawLines := strings.Split(content, "\n")
+	for i, raw := range rawLines {
 		trimmed := strings.TrimSpace(raw)
 		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "---") {
 			continue
@@ -204,6 +206,9 @@ func boundedBody(content string) string {
 		started = true
 		lines = append(lines, raw)
 		if len(lines) >= maxLines {
+			if i+1 < len(rawLines) {
+				truncated = true
+			}
 			break
 		}
 	}
@@ -213,6 +218,9 @@ func boundedBody(content string) string {
 	body := strings.Join(lines, "\n")
 	if len(body) > maxChars {
 		return body[:maxChars] + "\n[truncated]"
+	}
+	if truncated {
+		return body + "\n[truncated]"
 	}
 	return body
 }
