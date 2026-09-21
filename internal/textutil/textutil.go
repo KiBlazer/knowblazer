@@ -45,18 +45,18 @@ func Tokenize(text string) []string {
 				out = append(out, full)
 			}
 			for i := 0; i < n-1; i++ {
-				bg := string(cjkBuf[i : i+2])
-				if !seen[bg] {
-					seen[bg] = true
-					out = append(out, bg)
+				bigram := string(cjkBuf[i : i+2])
+				if !seen[bigram] {
+					seen[bigram] = true
+					out = append(out, bigram)
 				}
 			}
 		}
 		for i := 0; i < n; i++ {
-			ug := string(cjkBuf[i])
-			if !seen[ug] {
-				seen[ug] = true
-				out = append(out, ug)
+			unigram := string(cjkBuf[i])
+			if !seen[unigram] {
+				seen[unigram] = true
+				out = append(out, unigram)
 			}
 		}
 		cjkBuf = cjkBuf[:0]

@@ -417,6 +417,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 	if geminiMD != "" {
 		if content, err := os.ReadFile(geminiMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-") {
 			fmt.Fprintf(stdout, "Gemini instructions: %s\n", geminiMD)
+		} else {
+			fmt.Fprintln(stdout, "Gemini instructions: not configured")
 		}
 	}
 	freshCount, err := consolidate.CountFresh(repoRoot)

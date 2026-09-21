@@ -153,4 +153,7 @@ func TestServeStatusRecognizesAgentsMD(t *testing.T) {
 	if configured, _ := statusMap["claude_configured"].(bool); !configured {
 		t.Fatalf("statusMap[claude_configured] = false, want true when AGENTS.md is configured")
 	}
+	if configured, _ := statusMap["configured"].(bool); !configured {
+		t.Fatalf("statusMap[configured] = false, want true when AGENTS.md is configured")
+	}
 }

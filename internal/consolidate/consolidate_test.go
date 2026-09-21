@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/knowblazer/knowblazer/internal/capture"
 	"github.com/knowblazer/knowblazer/internal/repo"
@@ -202,3 +203,37 @@ func TestRunTruncatesWhenLineLimitExceeded(t *testing.T) {
 		t.Fatalf("synthesized memory missing truncation marker for 40 lines:\n%s", text)
 	}
 }
+
+func TestRunTruncatesUtf8WithoutCorruptingRunes(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(t.TempDir(), "cjk_long.md")
+	// Repeat 3-byte CJK runes so length in bytes is ~4800, but runes is 1600 (> 1500 limit).
+	cjkText := strings.Repeat("中", 1600)
+	content := "# 性能优化经验\n\n" + cjkText + "\n"
+	if err := os.WriteFile(source, []byte(content), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	if _, err := capture.MarkdownAuto(root, source); err != nil {
+		t.Fatalf("MarkdownAuto() error = %v", err)
+	}
+
+	result, err := Run(root)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	textBytes, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("read synthesized: %v", err)
+	}
+	if !utf8.Valid(textBytes) {
+		t.Fatalf("synthesized file is not valid UTF-8, truncated mid-rune")
+	}
+	text := string(textBytes)
+	if !strings.Contains(text, "[truncated]") {
+		t.Fatalf("synthesized memory missing truncation marker:\n%s", text)
+	}
+}
+

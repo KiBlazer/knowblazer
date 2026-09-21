@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Result struct {
@@ -216,8 +217,9 @@ func boundedBody(content string) string {
 		lines = lines[:len(lines)-1]
 	}
 	body := strings.Join(lines, "\n")
-	if len(body) > maxChars {
-		return body[:maxChars] + "\n[truncated]"
+	if utf8.RuneCountInString(body) > maxChars {
+		runes := []rune(body)
+		return string(runes[:maxChars]) + "\n[truncated]"
 	}
 	if truncated {
 		return body + "\n[truncated]"

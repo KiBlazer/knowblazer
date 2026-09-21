@@ -341,6 +341,7 @@ func status(repoRoot string, workspace string) (map[string]any, error) {
 		"project":              project,
 		"workspace":            workspace,
 		"project_memory":       projectMemoryState(repoRoot, project),
+		"configured":           configured,
 		"claude_configured":    configured,
 		"fresh_auto_memories":  freshCount,
 		"synthesized_memories": synthesizedCount,
