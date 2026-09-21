@@ -111,3 +111,21 @@ func TestScanDirectorySkipsGitDirectory(t *testing.T) {
 		t.Fatalf("Level = %v, want Clean", result.Level)
 	}
 }
+
+func TestScanDirectorySkipsQuarantineDirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "quarantine"), 0o755); err != nil {
+		t.Fatalf("mkdir quarantine: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "quarantine", "leak.md"), []byte("password=super-secret-password\n"), 0o644); err != nil {
+		t.Fatalf("write quarantine file: %v", err)
+	}
+
+	result, err := Path(root)
+	if err != nil {
+		t.Fatalf("Path() error = %v", err)
+	}
+	if result.Level != Clean {
+		t.Fatalf("Level = %v, want Clean because quarantine should be skipped", result.Level)
+	}
+}

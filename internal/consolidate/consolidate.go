@@ -181,27 +181,34 @@ func stripFrontMatter(content string) string {
 }
 
 func boundedBody(content string) string {
-	const maxLines = 8
-	const maxChars = 800
+	const maxLines = 25
+	const maxChars = 1500
 
 	var lines []string
 	started := false
 	for _, raw := range strings.Split(content, "\n") {
-		line := strings.TrimSpace(raw)
-		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "---") {
+		trimmed := strings.TrimSpace(raw)
+		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "---") {
 			continue
 		}
-		if line == "" {
-			if started {
-				break
+		if trimmed == "" {
+			if !started {
+				continue
 			}
+			if len(lines) > 0 && lines[len(lines)-1] == "" {
+				continue
+			}
+			lines = append(lines, "")
 			continue
 		}
 		started = true
-		lines = append(lines, line)
+		lines = append(lines, raw)
 		if len(lines) >= maxLines {
 			break
 		}
+	}
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
 	}
 	body := strings.Join(lines, "\n")
 	if len(body) > maxChars {

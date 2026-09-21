@@ -27,3 +27,6 @@ tmp/
 temp/
 *.tmp
 *.log
+
+# Agent local configuration
+docs/agents/

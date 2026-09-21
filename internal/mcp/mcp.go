@@ -40,6 +40,9 @@ type Response struct {
 
 func Serve(repoRoot string, in io.Reader, out io.Writer) error {
 	scanner := bufio.NewScanner(in)
+	const maxCapacity = 10 * 1024 * 1024 // 10MB
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
 	encoder := json.NewEncoder(out)
 	for scanner.Scan() {
 		var req Request
@@ -324,8 +327,14 @@ func status(repoRoot string, workspace string) (map[string]any, error) {
 	}
 	configured := false
 	if workspace != "" {
-		content, err := os.ReadFile(filepath.Join(workspace, "CLAUDE.md"))
-		configured = err == nil && strings.Contains(string(content), "KNOWBLAZER-CLAUDE-SETUP:START")
+		for _, name := range []string{"CLAUDE.md", "AGENTS.md", "GEMINI.md"} {
+			if content, err := os.ReadFile(filepath.Join(workspace, name)); err == nil {
+				if strings.Contains(string(content), "KNOWBLAZER-") {
+					configured = true
+					break
+				}
+			}
+		}
 	}
 	return map[string]any{
 		"repo":                 repoRoot,

@@ -44,3 +44,28 @@ func TestBuildAndSearchReviewedMemory(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildAndSearchChineseQuery(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	expDir := filepath.Join(root, "experience", "deployment")
+	if err := os.MkdirAll(expDir, 0o755); err != nil {
+		t.Fatalf("mkdir experience: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(expDir, "plane.md"), []byte("# Plane 部署经验\n\nPlane 平台使用 Docker Compose 部署。\n"), 0o644); err != nil {
+		t.Fatalf("write plane.md: %v", err)
+	}
+
+	hits, err := Search(root, "Plane部署")
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(hits) == 0 {
+		t.Fatalf("Search('Plane部署') returned 0 hits")
+	}
+	if hits[0].Path != "experience/deployment/plane.md" {
+		t.Fatalf("hits[0].Path = %q, want experience/deployment/plane.md", hits[0].Path)
+	}
+}

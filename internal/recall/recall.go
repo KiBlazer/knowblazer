@@ -9,7 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
+
+	"github.com/knowblazer/knowblazer/internal/textutil"
 )
 
 const maxPackBytes = 20 * 1024
@@ -164,19 +165,7 @@ func recentDaily(repoRoot string) []string {
 }
 
 func keywords(task string) []string {
-	fields := strings.FieldsFunc(strings.ToLower(task), func(r rune) bool {
-		return !(unicode.IsLetter(r) || unicode.IsDigit(r))
-	})
-	var out []string
-	seen := map[string]bool{}
-	for _, field := range fields {
-		if len(field) < 2 || seen[field] {
-			continue
-		}
-		seen[field] = true
-		out = append(out, field)
-	}
-	return out
+	return textutil.Tokenize(task)
 }
 
 func scoreText(text string, keywords []string) int {

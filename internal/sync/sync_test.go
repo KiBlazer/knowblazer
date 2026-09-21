@@ -67,6 +67,22 @@ func TestCommitDoesNotStageQuarantineByDefault(t *testing.T) {
 	}
 }
 
+func TestCommitSucceedsWhenQuarantineContainsHighRiskSecrets(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	runGit(t, root, "config", "user.email", "test@example.com")
+	runGit(t, root, "config", "user.name", "Test User")
+	if err := os.WriteFile(filepath.Join(root, "quarantine", "leak.md"), []byte("password=super-secret-password\n"), 0o644); err != nil {
+		t.Fatalf("write quarantine leak: %v", err)
+	}
+
+	if _, err := Commit(root, "memory update"); err != nil {
+		t.Fatalf("Commit() should succeed even if quarantine has secrets, error = %v", err)
+	}
+}
+
 func gitTrackedFiles(t *testing.T, dir string) string {
 	t.Helper()
 	cmd := exec.Command("git", "ls-files")

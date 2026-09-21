@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"unicode"
+
+	"github.com/knowblazer/knowblazer/internal/textutil"
 )
 
 type Document struct {
@@ -115,18 +116,7 @@ func Search(repoRoot string, query string) ([]Hit, error) {
 }
 
 func uniqueTerms(value string) []string {
-	seen := map[string]bool{}
-	fields := strings.FieldsFunc(strings.ToLower(value), func(r rune) bool {
-		return !(unicode.IsLetter(r) || unicode.IsDigit(r))
-	})
-	var out []string
-	for _, field := range fields {
-		if len(field) < 2 || seen[field] {
-			continue
-		}
-		seen[field] = true
-		out = append(out, field)
-	}
+	out := textutil.Tokenize(value)
 	sort.Strings(out)
 	return out
 }

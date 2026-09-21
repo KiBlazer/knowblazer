@@ -161,3 +161,27 @@ func TestGenerateSkipsExperienceReadmeFiles(t *testing.T) {
 		t.Fatalf("recall pack included README content:\n%s", pack)
 	}
 }
+
+func TestGenerateRecallWithChineseTask(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	expDir := filepath.Join(root, "experience", "deployment")
+	if err := os.MkdirAll(expDir, 0o755); err != nil {
+		t.Fatalf("mkdir experience: %v", err)
+	}
+	content := "# Plane 部署经验\n\nPlane 平台使用 Docker Compose 部署在 /data/infra/plane，HTTP 端口 9103。\n"
+	if err := os.WriteFile(filepath.Join(expDir, "plane.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write plane.md: %v", err)
+	}
+
+	pack, err := Generate(root, Options{Task: "排查Plane部署问题"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	text := string(pack)
+	if !strings.Contains(text, "Plane 平台使用 Docker Compose 部署") {
+		t.Fatalf("recall pack failed to match Chinese query:\n%s", text)
+	}
+}

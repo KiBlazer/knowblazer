@@ -135,3 +135,37 @@ func TestRunNoFreshMemoriesIsNoop(t *testing.T) {
 		t.Fatalf("result = %#v, want noop", result)
 	}
 }
+
+func TestRunPreservesMultiParagraphMemoryWithEmptyLines(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(t.TempDir(), "memory.md")
+	content := "# Troubleshooting\n\nFirst paragraph explaining the bug.\n\nSecond paragraph explaining the solution.\n\n```bash\nkubectl rollout restart\n```\n"
+	if err := os.WriteFile(source, []byte(content), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	if _, err := capture.MarkdownAuto(root, source); err != nil {
+		t.Fatalf("MarkdownAuto() error = %v", err)
+	}
+
+	result, err := Run(root)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	textBytes, err := os.ReadFile(result.Path)
+	if err != nil {
+		t.Fatalf("read synthesized: %v", err)
+	}
+	text := string(textBytes)
+	for _, want := range []string{
+		"First paragraph explaining the bug.",
+		"Second paragraph explaining the solution.",
+		"kubectl rollout restart",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("synthesized memory missing %q:\n%s", want, text)
+		}
+	}
+}

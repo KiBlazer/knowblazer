@@ -98,6 +98,59 @@ func TestServeRecallRequest(t *testing.T) {
 	}
 	result, _ := resp.Result.(string)
 	if resp.Error != nil || !strings.Contains(result, "Prefer tests.") {
-		t.Fatalf("response = %#v", resp)
+		t.Fatalf("unexpected response: %#v", resp)
+	}
+}
+
+func TestServeLargePayload(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	largeText := strings.Repeat("A", 100*1024) // 100KB > 64KB default MaxScanTokenSize
+	payload := `{"id":1,"method":"knowblazer_remember","params":{"text":"` + largeText + `"}}` + "\n"
+	input := strings.NewReader(payload)
+	var output bytes.Buffer
+	if err := Serve(root, input, &output); err != nil {
+		t.Fatalf("Serve() returned error for large payload: %v", err)
+	}
+	var resp Response
+	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v, output: %s", err, output.String())
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error response: %#v", resp.Error)
+	}
+}
+
+func TestServeStatusRecognizesAgentsMD(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspace, 0o755); err != nil {
+		t.Fatalf("mkdir workspace: %v", err)
+	}
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "AGENTS.md"), []byte("<!-- KNOWBLAZER-CODEX-SETUP:START -->\n"), 0o644); err != nil {
+		t.Fatalf("write AGENTS.md: %v", err)
+	}
+
+	payload := `{"id":1,"method":"knowblazer_status","params":{"workspace":"` + filepath.ToSlash(workspace) + `"}}` + "\n"
+	input := strings.NewReader(payload)
+	var output bytes.Buffer
+	if err := Serve(root, input, &output); err != nil {
+		t.Fatalf("Serve() error = %v", err)
+	}
+	var resp Response
+	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	statusMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("Result is not a map: %#v", resp.Result)
+	}
+	if configured, _ := statusMap["claude_configured"].(bool); !configured {
+		t.Fatalf("statusMap[claude_configured] = false, want true when AGENTS.md is configured")
 	}
 }

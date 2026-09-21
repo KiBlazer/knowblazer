@@ -139,3 +139,24 @@ func TestMarkdownRejectsNonMarkdownFile(t *testing.T) {
 		t.Fatal("Markdown() error = nil, want error for non-Markdown file")
 	}
 }
+
+func TestMarkdownGeneratesSemanticSlugForNonASCII(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	if err := repo.Init(root); err != nil {
+		t.Fatalf("repo.Init() error = %v", err)
+	}
+	source := filepath.Join(t.TempDir(), "source.md")
+	content := "# 微信小程序支付配置\n\n使用 JSAPI 调起支付。\n"
+	if err := os.WriteFile(source, []byte(content), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	result, err := MarkdownAuto(root, source)
+	if err != nil {
+		t.Fatalf("MarkdownAuto() error = %v", err)
+	}
+	base := filepath.Base(result.Path)
+	if !strings.Contains(base, "微信小程序支付配置") {
+		t.Fatalf("filename %q missing semantic title slug, got fallback instead", base)
+	}
+}

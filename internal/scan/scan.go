@@ -125,7 +125,7 @@ func scanDir(root string) (Result, error) {
 
 func shouldSkipDir(name string) bool {
 	switch name {
-	case ".git", "node_modules", ".idea", ".vscode":
+	case ".git", "node_modules", ".idea", ".vscode", "quarantine":
 		return true
 	default:
 		return false
@@ -141,6 +141,9 @@ func scanFile(path string) (Result, error) {
 
 	var result Result
 	scanner := bufio.NewScanner(file)
+	const maxCapacity = 10 * 1024 * 1024
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
 	lineNo := 0
 	for scanner.Scan() {
 		lineNo++

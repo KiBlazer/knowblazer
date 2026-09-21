@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/knowblazer/knowblazer/internal/scan"
 )
@@ -112,9 +112,20 @@ scan_level: "%s"
 
 func slugify(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
-	re := regexp.MustCompile(`[^a-z0-9]+`)
-	value = re.ReplaceAllString(value, "-")
-	return strings.Trim(value, "-")
+	var buf strings.Builder
+	hyphen := false
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			buf.WriteRune(r)
+			hyphen = false
+		} else if !hyphen {
+			if buf.Len() > 0 {
+				buf.WriteByte('-')
+				hyphen = true
+			}
+		}
+	}
+	return strings.TrimSuffix(buf.String(), "-")
 }
 
 func escapeYAML(value string) string {

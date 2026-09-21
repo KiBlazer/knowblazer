@@ -404,7 +404,7 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 		agentsMD = filepath.Join(workspace, "AGENTS.md")
 	}
 	if agentsMD != "" {
-		if content, err := os.ReadFile(agentsMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-CODEX-SETUP:START") {
+		if content, err := os.ReadFile(agentsMD); err == nil && (strings.Contains(string(content), "KNOWBLAZER-CODEX-SETUP:START") || strings.Contains(string(content), "KNOWBLAZER-AGENTS-SETUP:START") || strings.Contains(string(content), "KNOWBLAZER-")) {
 			fmt.Fprintf(stdout, "Codex instructions: %s\n", agentsMD)
 		} else {
 			fmt.Fprintln(stdout, "Codex instructions: not configured")
