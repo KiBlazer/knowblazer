@@ -402,6 +402,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 	if claudeMD != "" {
 		if content, err := os.ReadFile(claudeMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-CLAUDE-SETUP:START") {
 			fmt.Fprintf(stdout, "Claude instructions: %s\n", claudeMD)
+		} else if globalClaude := filepath.Join(os.Getenv("HOME"), ".claude", "CLAUDE.md"); checkFileContains(globalClaude, "KNOWBLAZER-") {
+			fmt.Fprintf(stdout, "Claude instructions: %s (global)\n", globalClaude)
 		} else {
 			fmt.Fprintln(stdout, "Claude instructions: not configured")
 		}
@@ -413,6 +415,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 	if agentsMD != "" {
 		if content, err := os.ReadFile(agentsMD); err == nil && (strings.Contains(string(content), "KNOWBLAZER-CODEX-SETUP:START") || strings.Contains(string(content), "KNOWBLAZER-AGENTS-SETUP:START") || strings.Contains(string(content), "KNOWBLAZER-")) {
 			fmt.Fprintf(stdout, "Codex instructions: %s\n", agentsMD)
+		} else if globalAgents := filepath.Join(os.Getenv("HOME"), ".agents", "AGENTS.md"); checkFileContains(globalAgents, "KNOWBLAZER-") {
+			fmt.Fprintf(stdout, "Codex instructions: %s (global)\n", globalAgents)
 		} else {
 			fmt.Fprintln(stdout, "Codex instructions: not configured")
 		}
@@ -424,6 +428,8 @@ func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
 	if geminiMD != "" {
 		if content, err := os.ReadFile(geminiMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-") {
 			fmt.Fprintf(stdout, "Gemini instructions: %s\n", geminiMD)
+		} else if globalGemini := filepath.Join(os.Getenv("HOME"), ".gemini", "GEMINI.md"); checkFileContains(globalGemini, "KNOWBLAZER-") {
+			fmt.Fprintf(stdout, "Gemini instructions: %s (global)\n", globalGemini)
 		} else {
 			fmt.Fprintln(stdout, "Gemini instructions: not configured")
 		}
@@ -468,25 +474,73 @@ func projectMemoryState(repoRoot string, project string) string {
 }
 
 func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 || (args[0] != "claude" && args[0] != "codex" && args[0] != "antigravity" && args[0] != "agy") {
-		fmt.Fprintln(stderr, "usage: knowblazer setup <claude|codex|antigravity> [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
+	isGlobal := hasFlag(args, "--global")
+	tool := ""
+	positionals := nonFlagArgs(args)
+	if len(positionals) > 0 {
+		tool = positionals[0]
+	}
+
+	if tool != "" && tool != "claude" && tool != "codex" && tool != "antigravity" && tool != "agy" {
+		fmt.Fprintln(stderr, "usage: knowblazer setup [claude|codex|antigravity] [--global] [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
 		return 2
 	}
-	repoRoot, err := repoForArgs(args[1:])
+	if tool == "" && !isGlobal {
+		fmt.Fprintln(stderr, "usage: knowblazer setup <claude|codex|antigravity> [--global] [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
+		return 2
+	}
+
+	repoRoot, err := repoForArgs(args)
 	if err != nil {
 		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
-	workspace := flagValue(args[1:], "--path")
-	project := flagValue(args[1:], "--project")
-	scope := flagValue(args[1:], "--scope")
-	if args[0] == "codex" {
+	workspace := flagValue(args, "--path")
+	project := flagValue(args, "--project")
+	scope := flagValue(args, "--scope")
+	skipMCP := hasFlag(args, "--skip-mcp")
+
+	if isGlobal && tool == "" {
+		codexRes, err := setup.Codex(setup.CodexOptions{
+			RepoRoot: repoRoot,
+			Global:   true,
+			SkipMCP:  skipMCP,
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "setup global codex failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Global Codex/Agent instructions updated: %s\n", codexRes.AgentsMD)
+
+		claudeRes, err := setup.Claude(setup.ClaudeOptions{
+			RepoRoot: repoRoot,
+			Global:   true,
+			Scope:    "user",
+			SkipMCP:  skipMCP,
+		})
+		if err != nil {
+			fmt.Fprintf(stderr, "setup global claude failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Global Claude instructions updated: %s\n", claudeRes.ClaudeMD)
+
+		_, _ = setup.Antigravity(setup.AntigravityOptions{
+			RepoRoot: repoRoot,
+			SkipMCP:  skipMCP,
+		})
+
+		fmt.Fprintln(stdout, "Global Knowblazer memory instructions ready across all workspaces.")
+		return 0
+	}
+
+	if tool == "codex" {
 		result, err := setup.Codex(setup.CodexOptions{
 			RepoRoot:      repoRoot,
 			Workspace:     workspace,
 			Project:       project,
-			SkipMCP:       hasFlag(args[1:], "--skip-mcp"),
-			EnsureProject: true,
+			Global:        isGlobal,
+			SkipMCP:       skipMCP,
+			EnsureProject: !isGlobal,
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "setup codex failed: %v\n", err)
@@ -504,12 +558,24 @@ func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "Codex integration ready.")
 		return 0
 	}
-	if args[0] == "antigravity" || args[0] == "agy" {
+	if tool == "antigravity" || tool == "agy" {
+		if isGlobal {
+			codexRes, err := setup.Codex(setup.CodexOptions{
+				RepoRoot: repoRoot,
+				Global:   true,
+				SkipMCP:  skipMCP,
+			})
+			if err != nil {
+				fmt.Fprintf(stderr, "setup global antigravity instructions failed: %v\n", err)
+				return 1
+			}
+			fmt.Fprintf(stdout, "Global Antigravity instructions updated: %s\n", codexRes.AgentsMD)
+		}
 		result, err := setup.Antigravity(setup.AntigravityOptions{
 			RepoRoot:  repoRoot,
 			Workspace: workspace,
 			Project:   project,
-			SkipMCP:   hasFlag(args[1:], "--skip-mcp"),
+			SkipMCP:   skipMCP,
 		})
 		if err != nil {
 			fmt.Fprintf(stderr, "setup antigravity failed: %v\n", err)
@@ -530,8 +596,9 @@ func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
 		Workspace:     workspace,
 		Project:       project,
 		Scope:         scope,
-		SkipMCP:       hasFlag(args[1:], "--skip-mcp"),
-		EnsureProject: true,
+		Global:        isGlobal,
+		SkipMCP:       skipMCP,
+		EnsureProject: !isGlobal,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "setup claude failed: %v\n", err)
@@ -1247,6 +1314,13 @@ func runUpdate(args []string, stdout io.Writer, stderr io.Writer) int {
 	return 0
 }
 
+func checkFileContains(path string, substr string) bool {
+	if content, err := os.ReadFile(path); err == nil {
+		return strings.Contains(string(content), substr)
+	}
+	return false
+}
+
 func levelString(level scan.Level) string {
 	switch level {
 	case scan.High:
@@ -1368,7 +1442,7 @@ func gitRoot(workspace string) (string, bool) {
 
 func flagTakesValue(name string) bool {
 	switch name {
-	case "--daily", "--skip-mcp", "--force":
+	case "--daily", "--skip-mcp", "--force", "--global":
 		return false
 	default:
 		return true

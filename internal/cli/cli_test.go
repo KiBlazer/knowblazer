@@ -1037,3 +1037,30 @@ func TestRunVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestRunSetupGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut, initErr bytes.Buffer
+	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
+		t.Fatalf("init failed: %d, %s", code, initErr.String())
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"setup", "--global", "--repo", root, "--skip-mcp"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("setup --global failed: %d, %s", code, stderr.String())
+	}
+
+	agentsMD := filepath.Join(home, ".agents", "AGENTS.md")
+	content, err := os.ReadFile(agentsMD)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(content), "Use Knowblazer as the local engineering memory source across all workspaces.") {
+		t.Fatalf("missing global instructions in AGENTS.md:\n%s", string(content))
+	}
+}

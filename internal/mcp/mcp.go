@@ -336,6 +336,17 @@ func status(repoRoot string, workspace string) (map[string]any, error) {
 			}
 		}
 	}
+	if !configured {
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			for _, path := range []string{filepath.Join(home, ".agents", "AGENTS.md"), filepath.Join(home, ".claude", "CLAUDE.md")} {
+				if content, err := os.ReadFile(path); err == nil && strings.Contains(string(content), "KNOWBLAZER-") {
+					configured = true
+					break
+				}
+			}
+		}
+	}
 	return map[string]any{
 		"repo":                 repoRoot,
 		"project":              project,

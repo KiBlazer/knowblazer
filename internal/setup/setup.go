@@ -18,6 +18,7 @@ type ClaudeOptions struct {
 	Workspace     string
 	Project       string
 	Scope         string
+	Global        bool
 	SkipMCP       bool
 	EnsureProject bool
 }
@@ -33,6 +34,7 @@ type CodexOptions struct {
 	RepoRoot      string
 	Workspace     string
 	Project       string
+	Global        bool
 	SkipMCP       bool
 	EnsureProject bool
 }
@@ -48,25 +50,41 @@ func Claude(opts ClaudeOptions) (ClaudeResult, error) {
 	if err := repo.MustBeRepo(opts.RepoRoot); err != nil {
 		return ClaudeResult{}, err
 	}
-	workspaceAbs, err := workspaceAbs(opts.Workspace)
-	if err != nil {
-		return ClaudeResult{}, err
-	}
 	scope := opts.Scope
 	if scope == "" {
 		scope = "local"
+	}
+	if opts.Global {
+		scope = "user"
 	}
 	if scope != "local" && scope != "user" && scope != "project" {
 		return ClaudeResult{}, fmt.Errorf("unsupported Claude MCP scope: %s", scope)
 	}
 
-	claudeMD, err := ensureClaudeInstructions(workspaceAbs, opts.RepoRoot)
+	var claudeMD string
+	var err error
+	if opts.Global {
+		targetDir := filepath.Join(os.Getenv("HOME"), ".claude")
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			return ClaudeResult{}, err
+		}
+		path := filepath.Join(targetDir, "CLAUDE.md")
+		block := globalInstructionBlock("KNOWBLAZER-CLAUDE-SETUP", opts.RepoRoot)
+		claudeMD, err = ensureInstructionBlock(path, block, "KNOWBLAZER-CLAUDE-SETUP")
+	} else {
+		workspaceAbs, err := workspaceAbs(opts.Workspace)
+		if err != nil {
+			return ClaudeResult{}, err
+		}
+		claudeMD, err = ensureClaudeInstructions(workspaceAbs, opts.RepoRoot)
+	}
 	if err != nil {
 		return ClaudeResult{}, err
 	}
 
 	result := ClaudeResult{ClaudeMD: claudeMD}
-	if opts.Project != "" {
+	if !opts.Global && opts.Project != "" {
+		workspaceAbs, _ := workspaceAbs(opts.Workspace)
 		if opts.EnsureProject {
 			if err := ensureProjectFile(opts.RepoRoot, opts.Project, workspaceAbs); err != nil {
 				return ClaudeResult{}, err
@@ -94,18 +112,31 @@ func Codex(opts CodexOptions) (CodexResult, error) {
 	if err := repo.MustBeRepo(opts.RepoRoot); err != nil {
 		return CodexResult{}, err
 	}
-	workspaceAbs, err := workspaceAbs(opts.Workspace)
-	if err != nil {
-		return CodexResult{}, err
-	}
 
-	agentsMD, err := ensureCodexInstructions(workspaceAbs, opts.RepoRoot)
+	var agentsMD string
+	var err error
+	if opts.Global {
+		targetDir := filepath.Join(os.Getenv("HOME"), ".agents")
+		if err := os.MkdirAll(targetDir, 0o755); err != nil {
+			return CodexResult{}, err
+		}
+		path := filepath.Join(targetDir, "AGENTS.md")
+		block := globalInstructionBlock("KNOWBLAZER-CODEX-SETUP", opts.RepoRoot)
+		agentsMD, err = ensureInstructionBlock(path, block, "KNOWBLAZER-CODEX-SETUP")
+	} else {
+		workspaceAbs, err := workspaceAbs(opts.Workspace)
+		if err != nil {
+			return CodexResult{}, err
+		}
+		agentsMD, err = ensureCodexInstructions(workspaceAbs, opts.RepoRoot)
+	}
 	if err != nil {
 		return CodexResult{}, err
 	}
 
 	result := CodexResult{AgentsMD: agentsMD}
-	if opts.Project != "" {
+	if !opts.Global && opts.Project != "" {
+		workspaceAbs, _ := workspaceAbs(opts.Workspace)
 		if opts.EnsureProject {
 			if err := ensureProjectFile(opts.RepoRoot, opts.Project, workspaceAbs); err != nil {
 				return CodexResult{}, err
@@ -268,6 +299,20 @@ func instructionBlock(marker string, repoRoot string, workspace string) string {
 		"- If MCP is unavailable, run `knowblazer recall \"<task>\" --repo %s` and use the returned Markdown as context.\n"+
 		"- Never read from or include `quarantine/` in task context.\n"+
 		"<!-- %s:END -->\n", marker, workspace, repoRoot, marker)
+}
+
+func globalInstructionBlock(marker string, repoRoot string) string {
+	return fmt.Sprintf("<!-- %s:START -->\n"+
+		"## Knowblazer Memory\n\n"+
+		"Use Knowblazer as the local engineering memory source across all workspaces.\n\n"+
+		"- At the start of non-trivial coding tasks, call the Knowblazer MCP `knowblazer_context` tool with the task and current `workspace` path.\n"+
+		"- Before the final response on non-trivial tasks, do a silent end-of-task memory candidate review.\n"+
+		"- Call `knowblazer_remember` when durable project constraints, debugging lessons, build/test/deploy caveats, environment setup facts, architectural decisions, or reusable tool behaviors emerge.\n"+
+		"- Do not remember one-off task chatter, temporary implementation details, secrets, credentials, customer data, or facts already present in recalled context.\n"+
+		"- Use `knowblazer_status` if you need to check whether project memory is connected.\n"+
+		"- If MCP is unavailable, run `knowblazer recall \"<task>\" --repo %s` and use the returned Markdown as context.\n"+
+		"- Never read from or include `quarantine/` in task context.\n"+
+		"<!-- %s:END -->\n", marker, repoRoot, marker)
 }
 
 func configureClaudeMCP(repoRoot string, scope string) (bool, bool, error) {
