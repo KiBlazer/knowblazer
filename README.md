@@ -45,10 +45,26 @@ Knowblazer is not:
 Install the precompiled binary with a single command (no Go runtime required):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | bash
 ```
 
-### 2. From Source (Go developers)
+### 2. Updating Knowblazer
+To check your current version and update to the latest release:
+
+```bash
+# Check version
+knowblazer version
+
+# Self-update in-place
+knowblazer update
+```
+
+Or rerun the install script:
+```bash
+curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | bash
+```
+
+### 3. From Source (Go developers)
 If you prefer compiling from source, make sure you have Go installed, then run:
 
 ```bash

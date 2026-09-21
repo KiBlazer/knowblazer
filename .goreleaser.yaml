@@ -14,6 +14,8 @@ builds:
       - arm64
     main: ./cmd/knowblazer
     binary: knowblazer
+    ldflags:
+      - -s -w -X github.com/knowblazer/knowblazer/internal/version.Version={{.Version}} -X github.com/knowblazer/knowblazer/internal/version.Commit={{.Commit}} -X github.com/knowblazer/knowblazer/internal/version.Date={{.Date}}
 archives:
   - format: tar.gz
     # use zip for windows archives

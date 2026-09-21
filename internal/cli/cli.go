@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,8 @@ import (
 	"github.com/knowblazer/knowblazer/internal/scan"
 	"github.com/knowblazer/knowblazer/internal/setup"
 	ksync "github.com/knowblazer/knowblazer/internal/sync"
+	"github.com/knowblazer/knowblazer/internal/update"
+	"github.com/knowblazer/knowblazer/internal/version"
 )
 
 var setupLookPath = func(tool string) bool {
@@ -82,6 +85,10 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 		return runSync(args[1:], stdout, stderr)
 	case "recall":
 		return runRecall(args[1:], stdout, stderr)
+	case "version", "-v", "--version":
+		return runVersion(args[1:], stdout, stderr)
+	case "update", "upgrade":
+		return runUpdate(args[1:], stdout, stderr)
 	case "-h", "--help", "help":
 		printUsage(stdout)
 		return 0
@@ -1219,6 +1226,25 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  recall <task> [--repo <path>] [--project <name>] [--output <file>]")
 	fmt.Fprintln(w, "  status [--repo <path>] [--path <dir>]")
 	fmt.Fprintln(w, "  sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
+	fmt.Fprintln(w, "  version                                    print knowblazer version")
+	fmt.Fprintln(w, "  update [--force]                           update knowblazer to latest release")
+}
+
+func runVersion(args []string, stdout io.Writer, stderr io.Writer) int {
+	fmt.Fprintln(stdout, version.FullString())
+	return 0
+}
+
+func runUpdate(args []string, stdout io.Writer, stderr io.Writer) int {
+	force := hasFlag(args, "--force")
+	cfg := update.Config{
+		Force: force,
+	}
+	if err := update.Run(context.Background(), cfg, stdout); err != nil {
+		fmt.Fprintf(stderr, "update error: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func levelString(level scan.Level) string {
@@ -1342,7 +1368,7 @@ func gitRoot(workspace string) (string, bool) {
 
 func flagTakesValue(name string) bool {
 	switch name {
-	case "--daily", "--skip-mcp":
+	case "--daily", "--skip-mcp", "--force":
 		return false
 	default:
 		return true

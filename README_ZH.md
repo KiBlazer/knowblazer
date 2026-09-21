@@ -49,10 +49,26 @@ AI 辅助编程正逐渐分散到多个不同的工具中。这台工具可能�
 直接下载并安装预编译二进制文件，无需本地安装 Go 环境：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | bash
 ```
 
-### 2. 源码编译安装 (Go 开发者)
+### 2. 查看版本与更新
+检查当前版本并自动更新至最新发布版：
+
+```bash
+# 查看版本
+knowblazer version
+
+# 原地一键自更新
+knowblazer update
+```
+
+或重新运行一键安装脚本进行覆盖更新：
+```bash
+curl -fsSL https://raw.githubusercontent.com/KiBlazer/knowblazer/main/install.sh | bash
+```
+
+### 3. 源码编译安装 (Go 开发者)
 如果您拥有 Go 环境，可直接通过 `go install` 安装最新版：
 
 ```bash

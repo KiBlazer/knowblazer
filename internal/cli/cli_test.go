@@ -1023,3 +1023,17 @@ func TestRunRecallPrintsPack(t *testing.T) {
 		t.Fatalf("stdout missing project context: %s", stdout.String())
 	}
 }
+
+func TestRunVersion(t *testing.T) {
+	for _, cmd := range []string{"version", "-v", "--version"} {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		code := Run([]string{cmd}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("%s code = %d, stderr = %s", cmd, code, stderr.String())
+		}
+		if !strings.HasPrefix(stdout.String(), "knowblazer v") {
+			t.Fatalf("%s stdout = %q, want prefix 'knowblazer v'", cmd, stdout.String())
+		}
+	}
+}
