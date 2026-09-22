@@ -85,21 +85,25 @@ make install
 
 ## 快速开始
 
+### 1. 初始化记忆库并连接 AI 工具
+
 在您的任何项目目录中启动：
 
 ```bash
 cd /path/to/project
-knowblazer start
+knowblazer setup
 ```
 
-`knowblazer start` 会在 `~/knowblazer-notes` 创建或复用您的记忆库，根据当前目录名推断项目名称，并自动连接检测到的 AI 编程工具：
+或者开启全局记忆支持，在所有工作区中自动启用 Knowblazer：
+
+```bash
+knowblazer setup --global
+```
+
+`knowblazer setup` 会在 `~/knowblazer-notes` 创建或复用您的记忆库，根据当前目录名推断项目名称，并自动连接检测到的 AI 编程工具：
 *   **Claude Code**：自动写入 `CLAUDE.md` 策略文件，并自动在后台配置 MCP 服务。
 *   **Codex CLI**：自动写入 `AGENTS.md` 策略文件，并自动在后台配置 MCP 服务。
 *   **Antigravity (agy)**：动态更新全局 `mcp_config.json` 配置文件，自动在后台注册 MCP 服务。
-
-对于其他不支持自动命令行注册 MCP 的集成开发环境（IDE）与工具，您可以通过 `adapter` 指令生成复制即用的配置片段：
-*   **Cursor**：运行 `knowblazer adapter cursor`
-*   **Gemini CLI**：运行 `knowblazer adapter gemini`
 
 然后直接启动您的 AI 客户端：
 
@@ -109,58 +113,54 @@ claude
 codex
 ```
 
-### 每日高频指令：
+### 2. 每日核心高频指令：
 
 ```bash
-knowblazer remember "部署流程需要先运行数据库迁移脚本"
-knowblazer recall "如何进行项目部署？"
-knowblazer status
-knowblazer sync
+knowblazer remember "部署流程需要先运行数据库迁移脚本"       # 沉淀工程经验或 Markdown 文件
+knowblazer remember "已发布 v0.3.0 稳定版" --daily          # 追加到当天的工程师日志
+knowblazer recall "如何进行项目部署？"                      # 检索并生成精准上下文召回包
+knowblazer status                                           # 检查工作区映射与记忆状态
+knowblazer sync                                             # 安全扫描并同步私有 Git 仓库
 ```
 
 *   `remember`: 记录值得保留的经验；干净的笔记将写入 `experience/auto/` 并自动整合，包含密钥等高危内容则会被隔离。
-*   `status`: 检查您的动态记忆统计。
+*   `status`: 检查当前工作区映射、指令注入文件与动态记忆统计。
 *   `sync`: 只有在您主动调用时，它才会对修改的文件进行安全扫描，并提交推送至您的私有远程 Git 仓库。
 
 ---
 
-## MVP 运行逻辑
+## 完整命令体系一览
 
-```text
-从项目目录启动
-  ↓
-连接 Claude Code / Cursor 到私有记忆
-  ↓
-自动/手动捕获有用的经验
-  ↓
-安全扫描（检测密钥与敏感信息）
-  ↓
-干净内容进入 experience/auto/，高危内容进入 quarantine/ (隔离区)
-  ↓
-自动将新鲜记忆整合（Consolidate）为高密度上下文
-  ↓
-在编码时，根据当前 Task 动态生成 Recall Pack (召回包) 注入 AI 窗口
-```
+Knowblazer 经过重构，采用简洁优雅的三层指令分类：
+
+### 核心操作 (Core Commands)
+* `knowblazer setup [--global] [--path <dir>] [--tool <name>] [--skip-mcp]`：初始化记忆库并连接 AI 工具（支持全局注入）。
+* `knowblazer remember <文本|文件> [-d|--daily]`：沉淀经验、解决方案、Markdown 文档或追加日常日志。
+* `knowblazer recall <任务描述> [--project <项目名>] [--output <文件>]`：检索并生成针对当前编码任务的高密度召回包。
+* `knowblazer status [--path <目录>]`：检查当前工作区项目映射、工具指令注入状态与记忆量统计。
+* `knowblazer sync [status|commit|push|pull] [-m <提交信息>]`：带敏感信息预检的 Git 同步。
+
+### 经验管理与维护 (Management & Curation)
+* `knowblazer memory list`：列出收件箱中未审核的候选记忆。
+* `knowblazer memory review [suggest]`：审核收件箱或生成经验提炼整合建议。
+* `knowblazer memory promote <文件> --to <目标分类>`：将候选记忆正式提升归档到经验库。
+* `knowblazer memory reject <文件>`：拒绝并删除收件箱候选。
+* `knowblazer memory consolidate`：触发新鲜记忆整合，浓缩成高信息密度 Markdown 摘要。
+* `knowblazer memory search <关键词>`：在整个记忆库中进行 BM25 / 词频检索。
+* `knowblazer memory capture <文件>`：直接捕获外部 Markdown 笔记至收件箱（带安全拦截）。
+* `knowblazer memory import specstory <路径>`：将历史 SpecStory AI 对话提炼导入为经验候选。
+* `knowblazer memory scan <路径>`：安全扫描指定文件或目录，检查是否有泄漏的 Token 或密钥。
+* `knowblazer daily [show|add <文本>]`：查看或记录当天的工作日志。
+* `knowblazer project [list|set <名称>|clear]`：管理工作区路径与项目名称的绑定映射。
+* `knowblazer doctor`：全面体检记忆库结构完整性与敏感信息隔离状态。
+* `knowblazer backup <create|restore> [--passphrase <口令>]`：创建或恢复加密备份包。
+
+### 系统与服务 (System)
+* `knowblazer mcp [serve]`：启动标准 Model Context Protocol 服务，供 AI 工具通过 stdio 实时调用。
+* `knowblazer update`：自更新 Knowblazer 二进制程序至 GitHub 最新发布版本。
+* `knowblazer version`：打印版本号、编译 commit 与架构信息。
 
 ---
-
-## MCP 服务器集成配置
-
-若要在 **Cursor** 或 **Claude Desktop** 中使用 Knowblazer 的 MCP 服务，可在客户端 MCP settings 中添加如下配置：
-
-```json
-{
-  "mcpServers": {
-    "knowblazer": {
-      "command": "knowblazer",
-      "args": ["serve"],
-      "env": {
-        "KNOWBLAZER_NOTES_PATH": "/path/to/your/knowblazer-notes"
-      }
-    }
-  }
-}
-```
 
 ---
 

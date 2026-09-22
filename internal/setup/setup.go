@@ -86,7 +86,7 @@ func Claude(opts ClaudeOptions) (ClaudeResult, error) {
 	if !opts.Global && opts.Project != "" {
 		workspaceAbs, _ := workspaceAbs(opts.Workspace)
 		if opts.EnsureProject {
-			if err := ensureProjectFile(opts.RepoRoot, opts.Project, workspaceAbs); err != nil {
+			if err := EnsureProjectFile(opts.RepoRoot, opts.Project, workspaceAbs); err != nil {
 				return ClaudeResult{}, err
 			}
 		}
@@ -138,7 +138,7 @@ func Codex(opts CodexOptions) (CodexResult, error) {
 	if !opts.Global && opts.Project != "" {
 		workspaceAbs, _ := workspaceAbs(opts.Workspace)
 		if opts.EnsureProject {
-			if err := ensureProjectFile(opts.RepoRoot, opts.Project, workspaceAbs); err != nil {
+			if err := EnsureProjectFile(opts.RepoRoot, opts.Project, workspaceAbs); err != nil {
 				return CodexResult{}, err
 			}
 		}
@@ -182,7 +182,7 @@ func workspaceAbs(workspace string) (string, error) {
 	return abs, nil
 }
 
-func ensureProjectFile(repoRoot string, project string, workspace string) error {
+func EnsureProjectFile(repoRoot string, project string, workspace string) error {
 	path := filepath.Join(repoRoot, "projects", project+".md")
 	title := strings.TrimSpace(project)
 	if title == "" {

@@ -79,23 +79,27 @@ make install
 
 ## Quick Start
 
-Start from any project directory:
+### 1. Initialize Memory & Connect AI Tools
+
+Run `setup` from any project directory:
 
 ```bash
 cd /path/to/project
-knowblazer start
+knowblazer setup
 ```
 
-`knowblazer start` creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and automatically connects supported AI coding tools:
+Or enable Knowblazer memory globally across all your workspaces:
+
+```bash
+knowblazer setup --global
+```
+
+`knowblazer setup` automatically creates or reuses `~/knowblazer-notes`, infers the project from the current directory, and connects supported AI coding tools:
 *   **Claude Code**: Writes instructions to `CLAUDE.md` and configures MCP automatically.
 *   **Codex CLI**: Writes instructions to `AGENTS.md` and configures MCP automatically.
 *   **Antigravity (agy)**: Dynamically registers the MCP server in `mcp_config.json` automatically.
 
-For IDEs and other tools that do not support automatic command-line registration, you can generate copy-paste configuration snippets using the `adapter` command:
-*   **Cursor**: Run `knowblazer adapter cursor`
-*   **Gemini CLI**: Run `knowblazer adapter gemini`
-
-Then open whichever connected tool you use:
+Then start whichever connected tool you use:
 
 ```bash
 claude
@@ -103,80 +107,48 @@ claude
 codex
 ```
 
-Daily use:
+### 2. Daily Core Commands
 
 ```bash
-knowblazer remember "Deploys need smoke tests"
-knowblazer recall "deploy new frontend"
-knowblazer status
-knowblazer sync
+knowblazer remember "Deploys need smoke tests"     # Save a lesson or markdown file
+knowblazer remember "Shipped v0.3.0" --daily       # Append note to today's daily log
+knowblazer recall "deploy new frontend"            # Generate tailored context pack
+knowblazer status                                  # Check memory repo & project status
+knowblazer sync                                    # Inspect, commit, push, or pull Git remote
 ```
 
 Use `remember` for lessons worth keeping; clean lessons are written to `experience/auto/` and automatically consolidated into synthesized memory, while high-risk content is quarantined. Use `status` to check dynamic memory counts, and `sync` only when you choose to commit or push your private memory repo.
 
-## MCP Configuration
+## Command Reference
 
-To integrate Knowblazer's MCP server with **Cursor**, **Claude Desktop**, or other compatible tools, add the following to your MCP settings file:
+Knowblazer features a clean, unified command taxonomy:
 
-```json
-{
-  "mcpServers": {
-    "knowblazer": {
-      "command": "knowblazer",
-      "args": ["serve"],
-      "env": {
-        "KNOWBLAZER_NOTES_PATH": "/path/to/your/knowblazer-notes"
-      }
-    }
-  }
-}
-```
+### Core Commands (Daily Engineering)
+* `knowblazer setup [--global] [--path <dir>] [--tool <name>] [--skip-mcp]`: Initialize repo and connect AI coding tools.
+* `knowblazer remember <text|file> [-d|--daily]`: Record lesson, solution, markdown file, or daily note.
+* `knowblazer recall <task> [--project <name>] [--output <file>]`: Retrieve targeted context pack for coding.
+* `knowblazer status [--path <dir>]`: Check active workspace mapping, instruction files, and memory statistics.
+* `knowblazer sync [status|commit|push|pull] [-m <msg>]`: Git synchronization with sensitive scanning pre-checks.
 
-## MVP Flow
+### Management & Curation
+* `knowblazer memory list`: List unreviewed inbox candidate memories.
+* `knowblazer memory review [suggest]`: Review candidates or generate consolidation suggestions.
+* `knowblazer memory promote <file> --to <target>`: Move reviewed candidate memory into experience hierarchy.
+* `knowblazer memory reject <file>`: Reject and remove inbox candidate.
+* `knowblazer memory consolidate`: Consolidate fresh auto memories into higher-signal Markdown summaries.
+* `knowblazer memory search <query>`: BM25/keyword search across the entire memory index.
+* `knowblazer memory capture <file>`: Import markdown note directly to inbox with sensitive content scan.
+* `knowblazer memory import specstory <path>`: Distill historical AI coding sessions into inbox memories.
+* `knowblazer memory scan <path>`: Scan file or directory for exposed secrets and tokens.
+* `knowblazer daily [show|add <text>]`: View or update today's engineering daily log.
+* `knowblazer project [list|set <name>|clear]`: Manage workspace-to-project mappings.
+* `knowblazer doctor`: Verify repository integrity, config, and check for quarantine leaks.
+* `knowblazer backup <create|restore> [--passphrase <text>]`: Encrypted archive creation and restoration.
 
-The underlying local-first flow remains:
-
-```text
-start from a project directory
-  ↓
-connect Claude Code to private memory
-  ↓
-remember useful lessons automatically
-  ↓
-scan for secrets
-  ↓
-store fresh memory in experience/auto or risky content in quarantine
-  ↓
-automatically consolidate fresh memory into synthesized context
-  ↓
-recall task context while coding
-```
-
-Core commands:
-
-```bash
-knowblazer start
-knowblazer remember "Deploys need smoke tests"
-knowblazer recall "deploy new frontend"
-knowblazer status
-knowblazer sync
-```
-
-Advanced commands:
-
-```bash
-knowblazer init ~/knowblazer-notes
-knowblazer setup claude --repo ~/knowblazer-notes --project my-project --path .
-knowblazer setup codex --repo ~/knowblazer-notes --project my-project --path .
-knowblazer doctor --repo ~/knowblazer-notes
-knowblazer scan ~/knowblazer-notes
-knowblazer review list --repo ~/knowblazer-notes
-knowblazer review promote inbox/2026-04-29/deploy-lesson.md --to experience/deployment --repo ~/knowblazer-notes
-knowblazer daily add "fixed flaky deploy" --repo ~/knowblazer-notes
-knowblazer project set my-project --path ~/work/my-project --repo ~/knowblazer-notes
-knowblazer import specstory .specstory/history --repo ~/knowblazer-notes
-knowblazer backup create --repo ~/knowblazer-notes --output knowblazer-backup.tgz
-```
+### System & Integration
+* `knowblazer mcp [serve]`: Run Model Context Protocol server over stdio for AI tools.
+* `knowblazer update`: Self-update knowblazer binary to the latest GitHub release.
+* `knowblazer version`: Display current version, build commit, and platform architecture.
 
 Development helpers:
 

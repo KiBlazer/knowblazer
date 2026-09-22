@@ -20,14 +20,9 @@ func TestRunHelpIncludesCoreWorkflow(t *testing.T) {
 		t.Fatalf("help code = %d, stderr = %s", code, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"Common commands:", "start [--repo <path>]", "remember <file|text>", "recall <task>", "status [--repo <path>]", "sync [status|commit|push|pull]"} {
+	for _, want := range []string{"Core Commands:", "setup", "remember", "recall", "status", "sync", "Management:", "memory", "daily", "project", "doctor", "backup", "System:", "mcp", "update", "version"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("stdout missing %q: %s", want, out)
-		}
-	}
-	for _, hidden := range []string{"consolidate [--repo <path>]", "Advanced commands:", "setup claude", "mcp serve", "adapter <claude|codex|gemini|cursor>"} {
-		if strings.Contains(out, hidden) {
-			t.Fatalf("stdout should not show %q by default: %s", hidden, out)
 		}
 	}
 }
@@ -49,9 +44,9 @@ func TestRunStartAutoConfiguresInstalledTools(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"start", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
+	code := Run([]string{"setup", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("start code = %d, stderr = %s", code, stderr.String())
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
 	}
 	root := filepath.Join(home, "knowblazer-notes")
 	if _, err := os.Stat(filepath.Join(root, ".knowblazer", "config.json")); err != nil {
@@ -89,7 +84,7 @@ func TestRunStartAutoConfiguresInstalledTools(t *testing.T) {
 		}
 	}
 	if !strings.Contains(stdout.String(), "Knowblazer is ready for Claude Code and Codex in this project.") || !strings.Contains(stdout.String(), "Next: run `claude` or `codex` from this project.") {
-		t.Fatalf("start output missing auto setup details: %s", stdout.String())
+		t.Fatalf("setup output missing auto setup details: %s", stdout.String())
 	}
 
 	stdout.Reset()
@@ -121,9 +116,9 @@ func TestRunStartAutoSkipMCPWritesInstructionsWithoutInstalledTools(t *testing.T
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"start", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
+	code := Run([]string{"setup", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("start code = %d, stderr = %s", code, stderr.String())
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "CLAUDE.md")); err != nil {
 		t.Fatalf("expected CLAUDE.md: %v", err)
@@ -133,7 +128,7 @@ func TestRunStartAutoSkipMCPWritesInstructionsWithoutInstalledTools(t *testing.T
 	}
 	out := stdout.String()
 	if !strings.Contains(out, "Claude Code MCP skipped") || !strings.Contains(out, "Codex MCP skipped") {
-		t.Fatalf("start output missing skipped MCP details: %s", out)
+		t.Fatalf("setup output missing skipped MCP details: %s", out)
 	}
 }
 
@@ -153,9 +148,9 @@ func TestRunStartAutoContinuesWhenOneToolMCPFails(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"start", "--path", workspace}, &stdout, &stderr)
+	code := Run([]string{"setup", "--path", workspace}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("start code = %d, stderr = %s", code, stderr.String())
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "CLAUDE.md")); err != nil {
 		t.Fatalf("expected CLAUDE.md despite Claude MCP failure: %v", err)
@@ -165,7 +160,7 @@ func TestRunStartAutoContinuesWhenOneToolMCPFails(t *testing.T) {
 	}
 	out := stdout.String()
 	if !strings.Contains(out, "Claude Code MCP failed:") || !strings.Contains(out, "Codex MCP configured: knowblazer") {
-		t.Fatalf("start output missing partial result details: %s", out)
+		t.Fatalf("setup output missing partial result details: %s", out)
 	}
 }
 
@@ -191,9 +186,9 @@ func TestRunStartCanTargetCodex(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"start", "--tool", "codex", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
+	code := Run([]string{"setup", "codex", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
 	if code != 0 {
-		t.Fatalf("start code = %d, stderr = %s", code, stderr.String())
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
 	}
 	root := filepath.Join(home, "knowblazer-notes")
 	if _, err := os.Stat(filepath.Join(root, "projects", "kiblazer.md")); err != nil {
@@ -210,7 +205,7 @@ func TestRunStartCanTargetCodex(t *testing.T) {
 	}
 	out := stdout.String()
 	if !strings.Contains(out, "Knowblazer is ready for Codex in this project.") || !strings.Contains(out, "Codex instructions:") || !strings.Contains(out, "Next: run `codex`") {
-		t.Fatalf("start output missing Codex details: %s", out)
+		t.Fatalf("setup output missing Codex details: %s", out)
 	}
 
 	stdout.Reset()
@@ -229,8 +224,8 @@ func TestRunDoctorUsesRepoFlag(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -252,8 +247,8 @@ func TestRunDoctorDiscoversRepoFromEnvironment(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	t.Setenv("KNOWBLAZER_REPO", root)
 
@@ -272,8 +267,8 @@ func TestRunDoctorReturnsOneForFailures(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	if err := os.Remove(filepath.Join(root, ".knowblazer", "config.json")); err != nil {
 		t.Fatalf("remove config: %v", err)
@@ -292,11 +287,12 @@ func TestRunDoctorReturnsOneForFailures(t *testing.T) {
 
 func TestRunInitUsesDefaultHomePath(t *testing.T) {
 	home := t.TempDir()
+	workspace := t.TempDir()
 	t.Setenv("HOME", home)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Run([]string{"init"}, &stdout, &stderr)
+	code := Run([]string{"setup", "--path", workspace, "--skip-mcp"}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
 	}
@@ -314,7 +310,7 @@ func TestRunInitCreatesRepoAndPrintsNextSteps(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
-	code := Run([]string{"init", root}, &stdout, &stderr)
+	code := Run([]string{"setup", root, "--skip-mcp"}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
 	}
@@ -326,7 +322,7 @@ func TestRunInitCreatesRepoAndPrintsNextSteps(t *testing.T) {
 	if !strings.Contains(out, "Initialized Knowblazer memory repo:") {
 		t.Fatalf("stdout missing init message: %s", out)
 	}
-	if !strings.Contains(out, "knowblazer remember \"<lesson>\"") || !strings.Contains(out, "knowblazer recall \"<task>\"") || !strings.Contains(out, "knowblazer sync status") {
+	if !strings.Contains(out, "knowblazer remember \"<lesson>\"") || !strings.Contains(out, "knowblazer recall \"<task>\"") {
 		t.Fatalf("stdout missing dynamic memory next steps: %s", out)
 	}
 }
@@ -352,7 +348,7 @@ func TestRunScanPrintsRedactedFinding(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"scan", file}, &stdout, &stderr)
+	code := Run([]string{"memory", "scan", file}, &stdout, &stderr)
 	if code != 1 {
 		t.Fatalf("Run() code = %d, want 1; stderr = %s", code, stderr.String())
 	}
@@ -380,7 +376,7 @@ func TestRunScanPrintsCleanSummary(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"scan", file}, &stdout, &stderr)
+	code := Run([]string{"memory", "scan", file}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
 	}
@@ -397,7 +393,7 @@ func TestRunScanAcceptsRepoFlagForSpecCompatibility(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"scan", file, "--repo", t.TempDir()}, &stdout, &stderr)
+	code := Run([]string{"memory", "scan", file, "--repo", t.TempDir()}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("Run() code = %d, stderr = %s", code, stderr.String())
 	}
@@ -410,8 +406,8 @@ func TestRunCaptureUsesRepoFlag(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	source := filepath.Join(t.TempDir(), "lesson.md")
@@ -421,7 +417,7 @@ func TestRunCaptureUsesRepoFlag(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"capture", source, "--repo", root}, &stdout, &stderr)
+	code := Run([]string{"memory", "capture", source, "--repo", root}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("capture code = %d, stderr = %s", code, stderr.String())
 	}
@@ -434,8 +430,8 @@ func TestRunCaptureDiscoversRepoFromEnvironment(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	t.Setenv("KNOWBLAZER_REPO", root)
 
@@ -446,7 +442,7 @@ func TestRunCaptureDiscoversRepoFromEnvironment(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"capture", source}, &stdout, &stderr)
+	code := Run([]string{"memory", "capture", source}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("capture code = %d, stderr = %s", code, stderr.String())
 	}
@@ -459,8 +455,8 @@ func TestRunPromoteUsesRepoAndTargetFlags(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	source := filepath.Join(t.TempDir(), "lesson.md")
@@ -470,14 +466,14 @@ func TestRunPromoteUsesRepoAndTargetFlags(t *testing.T) {
 
 	var captureOut bytes.Buffer
 	var captureErr bytes.Buffer
-	if code := Run([]string{"capture", source, "--repo", root}, &captureOut, &captureErr); code != 0 {
+	if code := Run([]string{"memory", "capture", source, "--repo", root}, &captureOut, &captureErr); code != 0 {
 		t.Fatalf("capture code = %d, stderr = %s", code, captureErr.String())
 	}
 	capturedPath := strings.TrimSpace(strings.TrimPrefix(strings.Split(captureOut.String(), "\n")[0], "Captured to inbox:"))
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"promote", capturedPath, "--to", "experience/deployment", "--repo", root}, &stdout, &stderr)
+	code := Run([]string{"memory", "promote", capturedPath, "--to", "experience/deployment", "--repo", root}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("promote code = %d, stderr = %s", code, stderr.String())
 	}
@@ -490,26 +486,17 @@ func TestRunAdapterImportAndIndex(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
-	}
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	if code := Run([]string{"adapter", "claude", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("adapter code = %d, stderr = %s", code, stderr.String())
-	}
-	if !strings.Contains(stdout.String(), "knowblazer recall") {
-		t.Fatalf("adapter output missing recall instructions: %s", stdout.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	source := filepath.Join(t.TempDir(), "history.md")
 	if err := os.WriteFile(source, []byte("# Deploy History\n\nRun smoke tests after deploy.\n"), 0o644); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
-	stdout.Reset()
-	stderr.Reset()
-	if code := Run([]string{"import", "specstory", source, "--repo", root}, &stdout, &stderr); code != 0 {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"memory", "import", "specstory", source, "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("import code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "inbox") {
@@ -526,12 +513,12 @@ func TestRunAdapterImportAndIndex(t *testing.T) {
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"index", "build", "--repo", root}, &stdout, &stderr); code != 0 {
+	if code := Run([]string{"memory", "index", "build", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("index build code = %d, stderr = %s", code, stderr.String())
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"index", "search", "deploy", "smoke", "--repo", root}, &stdout, &stderr); code != 0 {
+	if code := Run([]string{"memory", "search", "deploy", "smoke", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("index search code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "experience/deployment/deploy.md") {
@@ -543,8 +530,8 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -576,8 +563,8 @@ func TestRunExplicitConsolidateIsNoopAfterAutomaticConsolidation(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -596,7 +583,7 @@ func TestRunExplicitConsolidateIsNoopAfterAutomaticConsolidation(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"consolidate", "--repo", root}, &stdout, &stderr); code != 0 {
+	if code := Run([]string{"memory", "consolidate", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("consolidate code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "No fresh auto memories to consolidate.") {
@@ -608,8 +595,8 @@ func TestRunRememberDaily(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -634,8 +621,8 @@ func TestRunDailyAddAndShow(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -661,8 +648,8 @@ func TestRunSetupClaudeUpdatesProject(t *testing.T) {
 	}
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -680,14 +667,14 @@ func TestRunSetupClaudeUpdatesProject(t *testing.T) {
 	if !strings.Contains(text, "KNOWBLAZER-CLAUDE-SETUP:START") || !strings.Contains(text, root) || !strings.Contains(text, workspace) || !strings.Contains(text, "end-of-task memory candidate review") {
 		t.Fatalf("CLAUDE.md missing Knowblazer instructions:\n%s", text)
 	}
-	if !strings.Contains(stdout.String(), "Claude Code integration ready.") {
+	if !strings.Contains(stdout.String(), "Knowblazer is ready for Claude Code in this project.") {
 		t.Fatalf("setup output missing ready message: %s", stdout.String())
 	}
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"project", "show", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("project show code = %d, stderr = %s", code, stderr.String())
+	if code := Run([]string{"project", "list", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("project list code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "kiblazer") || !strings.Contains(stdout.String(), workspace) {
 		t.Fatalf("project mapping missing: %s", stdout.String())
@@ -702,8 +689,8 @@ func TestRunSetupUpgradesDefaultProjectStub(t *testing.T) {
 	}
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	projectPath := filepath.Join(root, "projects", "kiblazer.md")
 	if err := os.WriteFile(projectPath, []byte("# kiblazer\n\nAdd durable project context here.\n"), 0o644); err != nil {
@@ -733,8 +720,8 @@ func TestRunSetupKeepsCustomProjectMemory(t *testing.T) {
 	}
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	projectPath := filepath.Join(root, "projects", "kiblazer.md")
 	custom := "# kiblazer\n\nCustom durable context.\n"
@@ -764,8 +751,8 @@ func TestRunSetupCodexUpdatesProject(t *testing.T) {
 	}
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer
@@ -783,14 +770,14 @@ func TestRunSetupCodexUpdatesProject(t *testing.T) {
 	if !strings.Contains(text, "KNOWBLAZER-CODEX-SETUP:START") || !strings.Contains(text, root) || !strings.Contains(text, workspace) || !strings.Contains(text, "end-of-task memory candidate review") {
 		t.Fatalf("AGENTS.md missing Knowblazer instructions:\n%s", text)
 	}
-	if !strings.Contains(stdout.String(), "Codex integration ready.") {
+	if !strings.Contains(stdout.String(), "Knowblazer is ready for Codex in this project.") {
 		t.Fatalf("setup output missing ready message: %s", stdout.String())
 	}
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"project", "show", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("project show code = %d, stderr = %s", code, stderr.String())
+	if code := Run([]string{"project", "list", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("project list code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "kiblazer") || !strings.Contains(stdout.String(), workspace) {
 		t.Fatalf("project mapping missing: %s", stdout.String())
@@ -805,8 +792,8 @@ func TestRunProjectSetShowAndRecallMapping(t *testing.T) {
 	}
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	project := filepath.Join(root, "projects", "kiblazer.md")
 	if err := os.WriteFile(project, []byte("# Kiblazer\n\nMapped project context.\n"), 0o644); err != nil {
@@ -820,11 +807,11 @@ func TestRunProjectSetShowAndRecallMapping(t *testing.T) {
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"project", "show", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("project show code = %d, stderr = %s", code, stderr.String())
+	if code := Run([]string{"project", "list", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("project list code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "kiblazer") {
-		t.Fatalf("project show missing mapping: %s", stdout.String())
+		t.Fatalf("project list missing mapping: %s", stdout.String())
 	}
 	oldwd, err := os.Getwd()
 	if err != nil {
@@ -836,7 +823,7 @@ func TestRunProjectSetShowAndRecallMapping(t *testing.T) {
 	defer os.Chdir(oldwd)
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"recall", "--task", "deploy", "--repo", root}, &stdout, &stderr); code != 0 {
+	if code := Run([]string{"recall", "deploy", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Mapped project context.") {
@@ -848,8 +835,8 @@ func TestRunSyncStatus(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
 		t.Fatalf("write project: %v", err)
@@ -869,8 +856,8 @@ func TestRunSyncDefaultsToStatus(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	if err := os.WriteFile(filepath.Join(root, "projects", "kiblazer.md"), []byte("# Kiblazer\n"), 0o644); err != nil {
 		t.Fatalf("write project: %v", err)
@@ -890,8 +877,8 @@ func TestRunBackupDreamAndReview(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 
 	if err := os.WriteFile(filepath.Join(root, "daily", "2026-04-29.md"), []byte("# 2026-04-29\n\n- Fixed deploy issue.\n"), 0o644); err != nil {
@@ -900,7 +887,7 @@ func TestRunBackupDreamAndReview(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := Run([]string{"dream", "--repo", root}, &stdout, &stderr); code != 0 {
+	if code := Run([]string{"memory", "dream", "--repo", root}, &stdout, &stderr); code != 0 {
 		t.Fatalf("dream code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Dynamic memory suggestions written to:") {
@@ -913,19 +900,19 @@ func TestRunBackupDreamAndReview(t *testing.T) {
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"review", "list", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("review list code = %d, stderr = %s", code, stderr.String())
+	if code := Run([]string{"memory", "list", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("memory list code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), candidate) {
-		t.Fatalf("review list missing candidate: %s", stdout.String())
+		t.Fatalf("memory list missing candidate: %s", stdout.String())
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"review", "reject", candidate, "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("review reject code = %d, stderr = %s", code, stderr.String())
+	if code := Run([]string{"memory", "reject", candidate, "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("memory reject code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Rejected to:") {
-		t.Fatalf("review reject missing message: %s", stdout.String())
+		t.Fatalf("memory reject missing message: %s", stdout.String())
 	}
 
 	promoteSource := filepath.Join(root, "inbox", "promote.md")
@@ -934,11 +921,11 @@ func TestRunBackupDreamAndReview(t *testing.T) {
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := Run([]string{"review", "promote", promoteSource, "--to", "experience/deployment", "--repo", root}, &stdout, &stderr); code != 0 {
-		t.Fatalf("review promote code = %d, stderr = %s", code, stderr.String())
+	if code := Run([]string{"memory", "promote", promoteSource, "--to", "experience/deployment", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("memory promote code = %d, stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Promoted to:") {
-		t.Fatalf("review promote missing message: %s", stdout.String())
+		t.Fatalf("memory promote missing message: %s", stdout.String())
 	}
 
 	backupPath := filepath.Join(t.TempDir(), "backup.tgz")
@@ -975,14 +962,14 @@ func TestRunRecallWritesOutputFile(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	output := filepath.Join(t.TempDir(), "recall.md")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"recall", "--task", "deploy frontend", "--repo", root, "--output", output}, &stdout, &stderr)
+	code := Run([]string{"recall", "deploy frontend", "--repo", root, "--output", output}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
 	}
@@ -1002,8 +989,8 @@ func TestRunRecallPrintsPack(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer
 	var initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
 	}
 	project := filepath.Join(root, "projects", "kiblazer.md")
 	if err := os.WriteFile(project, []byte("# Kiblazer\n\nFrontend deploys require smoke tests.\n"), 0o644); err != nil {
@@ -1012,7 +999,7 @@ func TestRunRecallPrintsPack(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	code := Run([]string{"recall", "--task", "deploy frontend", "--project", "kiblazer", "--repo", root}, &stdout, &stderr)
+	code := Run([]string{"recall", "deploy frontend", "--project", "kiblazer", "--repo", root}, &stdout, &stderr)
 	if code != 0 {
 		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
 	}
@@ -1044,8 +1031,8 @@ func TestRunSetupGlobal(t *testing.T) {
 
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut, initErr bytes.Buffer
-	if code := Run([]string{"init", root}, &initOut, &initErr); code != 0 {
-		t.Fatalf("init failed: %d, %s", code, initErr.String())
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup failed: %d, %s", code, initErr.String())
 	}
 
 	var stdout bytes.Buffer

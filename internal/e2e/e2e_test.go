@@ -16,8 +16,8 @@ func TestMVPFlow(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := cli.Run([]string{"init", repoRoot}, &stdout, &stderr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, stderr.String())
+	if code := cli.Run([]string{"setup", repoRoot, "--skip-mcp"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
 	}
 
 	lesson := filepath.Join(tmp, "frontend-deploy.md")
@@ -27,7 +27,7 @@ func TestMVPFlow(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run([]string{"capture", lesson, "--repo", repoRoot}, &stdout, &stderr); code != 0 {
+	if code := cli.Run([]string{"memory", "capture", lesson, "--repo", repoRoot}, &stdout, &stderr); code != 0 {
 		t.Fatalf("capture code = %d, stderr = %s", code, stderr.String())
 	}
 	capturedPath := strings.TrimSpace(strings.TrimPrefix(strings.Split(stdout.String(), "\n")[0], "Captured to inbox:"))
@@ -37,13 +37,13 @@ func TestMVPFlow(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run([]string{"promote", capturedPath, "--to", "experience/deployment", "--repo", repoRoot}, &stdout, &stderr); code != 0 {
+	if code := cli.Run([]string{"memory", "promote", capturedPath, "--to", "experience/deployment", "--repo", repoRoot}, &stdout, &stderr); code != 0 {
 		t.Fatalf("promote code = %d, stderr = %s", code, stderr.String())
 	}
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run([]string{"recall", "--task", "frontend deploy", "--repo", repoRoot}, &stdout, &stderr); code != 0 {
+	if code := cli.Run([]string{"recall", "frontend deploy", "--repo", repoRoot}, &stdout, &stderr); code != 0 {
 		t.Fatalf("recall code = %d, stderr = %s", code, stderr.String())
 	}
 	pack := stdout.String()
@@ -64,8 +64,8 @@ func TestMVPFlowQuarantinesSecrets(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	if code := cli.Run([]string{"init", repoRoot}, &stdout, &stderr); code != 0 {
-		t.Fatalf("init code = %d, stderr = %s", code, stderr.String())
+	if code := cli.Run([]string{"setup", repoRoot, "--skip-mcp"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, stderr.String())
 	}
 
 	lesson := filepath.Join(tmp, "secret.md")
@@ -75,7 +75,7 @@ func TestMVPFlowQuarantinesSecrets(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	if code := cli.Run([]string{"capture", lesson, "--repo", repoRoot}, &stdout, &stderr); code != 1 {
+	if code := cli.Run([]string{"memory", "capture", lesson, "--repo", repoRoot}, &stdout, &stderr); code != 1 {
 		t.Fatalf("capture code = %d, want 1; stderr = %s", code, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "Moved to quarantine:") {

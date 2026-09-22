@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/knowblazer/knowblazer/internal/adapter"
 	"github.com/knowblazer/knowblazer/internal/backup"
 	"github.com/knowblazer/knowblazer/internal/capture"
 	"github.com/knowblazer/knowblazer/internal/consolidate"
@@ -20,7 +19,6 @@ import (
 	"github.com/knowblazer/knowblazer/internal/index"
 	"github.com/knowblazer/knowblazer/internal/mcp"
 	"github.com/knowblazer/knowblazer/internal/projectmap"
-	"github.com/knowblazer/knowblazer/internal/promote"
 	"github.com/knowblazer/knowblazer/internal/recall"
 	"github.com/knowblazer/knowblazer/internal/repo"
 	"github.com/knowblazer/knowblazer/internal/review"
@@ -43,48 +41,33 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	switch args[0] {
-	case "init":
-		return runInit(args[1:], stdout, stderr)
-	case "start":
-		return runStart(args[1:], stdout, stderr)
-	case "status":
-		return runStatus(args[1:], stdout, stderr)
-	case "adapter":
-		return runAdapter(args[1:], stdout, stderr)
-	case "backup":
-		return runBackup(args[1:], stdout, stderr)
-	case "dream":
-		return runDream(args[1:], stdout, stderr)
-	case "import":
-		return runImport(args[1:], stdout, stderr)
-	case "index":
-		return runIndex(args[1:], stdout, stderr)
-	case "mcp":
-		return runMCP(args[1:], stdout, stderr)
-	case "remember":
-		return runRemember(args[1:], stdout, stderr)
-	case "review":
-		return runReview(args[1:], stdout, stderr)
-	case "scan":
-		return runScan(args[1:], stdout, stderr)
+	// --- Core Daily Workflow ---
 	case "setup":
 		return runSetup(args[1:], stdout, stderr)
-	case "capture":
-		return runCapture(args[1:], stdout, stderr)
-	case "daily":
-		return runDaily(args[1:], stdout, stderr)
-	case "doctor":
-		return runDoctor(args[1:], stdout, stderr)
-	case "project":
-		return runProject(args[1:], stdout, stderr)
-	case "promote":
-		return runPromote(args[1:], stdout, stderr)
-	case "consolidate":
-		return runConsolidate(args[1:], stdout, stderr)
-	case "sync":
-		return runSync(args[1:], stdout, stderr)
+	case "remember":
+		return runRemember(args[1:], stdout, stderr)
 	case "recall":
 		return runRecall(args[1:], stdout, stderr)
+	case "status":
+		return runStatus(args[1:], stdout, stderr)
+	case "sync":
+		return runSync(args[1:], stdout, stderr)
+
+	// --- Knowledge Management & Curation ---
+	case "memory":
+		return runMemory(args[1:], stdout, stderr)
+	case "daily":
+		return runDaily(args[1:], stdout, stderr)
+	case "project":
+		return runProject(args[1:], stdout, stderr)
+	case "doctor":
+		return runDoctor(args[1:], stdout, stderr)
+	case "backup":
+		return runBackup(args[1:], stdout, stderr)
+
+	// --- System & Integration ---
+	case "mcp":
+		return runMCP(args[1:], stdout, stderr)
 	case "version", "-v", "--version":
 		return runVersion(args[1:], stdout, stderr)
 	case "update", "upgrade":
@@ -92,6 +75,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	case "-h", "--help", "help":
 		printUsage(stdout)
 		return 0
+
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n", args[0])
 		printUsage(stderr)
@@ -99,408 +83,59 @@ func Run(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 }
 
-func runStart(args []string, stdout io.Writer, stderr io.Writer) int {
-	repoRoot, err := repoForStart(args)
-	if err != nil {
-		fmt.Fprintf(stderr, "start failed: %v\n", err)
-		return 1
-	}
-	workspace := flagValue(args, "--path")
-	if workspace == "" {
-		workspace, err = os.Getwd()
-		if err != nil {
-			fmt.Fprintf(stderr, "start failed: %v\n", err)
-			return 1
-		}
-	}
-	project := flagValue(args, "--project")
-	if project == "" {
-		project = inferProjectName(workspace)
-	}
-	tool := flagValue(args, "--tool")
-	if tool == "" {
-		return runStartAuto(args, repoRoot, workspace, project, stdout, stderr)
-	}
-	if tool == "codex" {
-		return runStartCodex(args, repoRoot, workspace, project, stdout, stderr)
-	}
-	if tool != "claude" {
-		fmt.Fprintf(stderr, "start failed: unsupported tool: %s\n", tool)
-		return 2
-	}
-	return runStartClaude(args, repoRoot, workspace, project, stdout, stderr)
-}
-
-func runStartAuto(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
-	claudeInstalled := setupLookPath("claude")
-	codexInstalled := setupLookPath("codex")
-	home, _ := os.UserHomeDir()
-	antigravityConfigDir := filepath.Join(home, ".gemini", "antigravity")
-	antigravityConfigDir2 := filepath.Join(home, ".gemini", "config")
-	antigravityInstalled := false
-	if info, err := os.Stat(antigravityConfigDir); err == nil && info.IsDir() {
-		antigravityInstalled = true
-	} else if info, err := os.Stat(antigravityConfigDir2); err == nil && info.IsDir() {
-		antigravityInstalled = true
-	}
-
-	skipMCP := hasFlag(args, "--skip-mcp")
-	if skipMCP {
-		claudeInstalled = true
-		codexInstalled = true
-	}
-	if !claudeInstalled && !codexInstalled && !antigravityInstalled {
-		fmt.Fprintln(stderr, "start failed: no supported AI tool found; install Claude Code, Codex CLI, or Antigravity, or run `knowblazer start --skip-mcp` to write project instructions only")
-		return 1
-	}
-
-	var claudeResult setup.ClaudeResult
-	var codexResult setup.CodexResult
-	var antigravityResult setup.AntigravityResult
-	var claudeErr error
-	var codexErr error
-	var antigravityErr error
-
-	if claudeInstalled {
-		result, err := setup.Claude(setup.ClaudeOptions{
-			RepoRoot:      repoRoot,
-			Workspace:     workspace,
-			Project:       project,
-			Scope:         flagValue(args, "--scope"),
-			SkipMCP:       skipMCP,
-			EnsureProject: true,
-		})
-		if err != nil {
-			claudeErr = err
-		} else {
-			claudeResult = result
-		}
-	}
-	if codexInstalled {
-		result, err := setup.Codex(setup.CodexOptions{
-			RepoRoot:      repoRoot,
-			Workspace:     workspace,
-			Project:       project,
-			SkipMCP:       skipMCP,
-			EnsureProject: true,
-		})
-		if err != nil {
-			codexErr = err
-		} else {
-			codexResult = result
-		}
-	}
-	if antigravityInstalled {
-		result, err := setup.Antigravity(setup.AntigravityOptions{
-			RepoRoot:  repoRoot,
-			Workspace: workspace,
-			Project:   project,
-			SkipMCP:   skipMCP,
-		})
-		if err != nil {
-			antigravityErr = err
-		} else {
-			antigravityResult = result
-		}
-	}
-
-	allFailed := true
-	if claudeInstalled && claudeErr == nil {
-		allFailed = false
-	}
-	if codexInstalled && codexErr == nil {
-		allFailed = false
-	}
-	if antigravityInstalled && antigravityErr == nil {
-		allFailed = false
-	}
-
-	if allFailed {
-		if claudeInstalled && claudeErr != nil {
-			fmt.Fprintf(stderr, "start failed: Claude Code setup failed: %v\n", claudeErr)
-		}
-		if codexInstalled && codexErr != nil {
-			fmt.Fprintf(stderr, "start failed: Codex setup failed: %v\n", codexErr)
-		}
-		if antigravityInstalled && antigravityErr != nil {
-			fmt.Fprintf(stderr, "start failed: Antigravity setup failed: %v\n", antigravityErr)
-		}
-		return 1
-	}
-
-	fmt.Fprintf(stdout, "Knowblazer is ready for %s in this project.\n", startToolLabel(claudeInstalled, codexInstalled, antigravityInstalled))
-	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
-	fmt.Fprintf(stdout, "Project: %s\n", project)
-	if claudeInstalled {
-		if claudeErr != nil {
-			fmt.Fprintf(stdout, "Claude Code MCP failed: %v\n", claudeErr)
-		} else {
-			printClaudeStartResult(stdout, claudeResult)
-		}
-	}
-	if codexInstalled {
-		if codexErr != nil {
-			fmt.Fprintf(stdout, "Codex MCP failed: %v\n", codexErr)
-		} else {
-			printCodexStartResult(stdout, codexResult)
-		}
-	}
-	if antigravityInstalled {
-		if antigravityErr != nil {
-			fmt.Fprintf(stdout, "Antigravity MCP failed: %v\n", antigravityErr)
-		} else {
-			if antigravityResult.MCPConfigured {
-				fmt.Fprintln(stdout, "Antigravity MCP configured: knowblazer")
-			} else if antigravityResult.MCPSkipped {
-				fmt.Fprintln(stdout, "Antigravity MCP skipped")
-			} else {
-				fmt.Fprintln(stdout, "Antigravity MCP already configured: knowblazer")
-			}
-		}
-	}
-	fmt.Fprintf(stdout, "Next: run %s from this project.\n", startNextCommand(claudeInstalled, codexInstalled, antigravityInstalled))
-	return 0
-}
-
-func runStartCodex(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
-	result, err := setup.Codex(setup.CodexOptions{
-		RepoRoot:      repoRoot,
-		Workspace:     workspace,
-		Project:       project,
-		SkipMCP:       hasFlag(args, "--skip-mcp"),
-		EnsureProject: true,
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "start failed: %v\n", err)
-		return 1
-	}
-	fmt.Fprintln(stdout, "Knowblazer is ready for Codex in this project.")
-	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
-	fmt.Fprintf(stdout, "Project: %s\n", project)
-	printCodexStartResult(stdout, result)
-	fmt.Fprintln(stdout, "Next: run `codex` from this project.")
-	return 0
-}
-
-func runStartClaude(args []string, repoRoot string, workspace string, project string, stdout io.Writer, stderr io.Writer) int {
-	result, err := setup.Claude(setup.ClaudeOptions{
-		RepoRoot:      repoRoot,
-		Workspace:     workspace,
-		Project:       project,
-		Scope:         flagValue(args, "--scope"),
-		SkipMCP:       hasFlag(args, "--skip-mcp"),
-		EnsureProject: true,
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "start failed: %v\n", err)
-		return 1
-	}
-	fmt.Fprintln(stdout, "Knowblazer is ready for Claude Code in this project.")
-	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
-	fmt.Fprintf(stdout, "Project: %s\n", project)
-	printClaudeStartResult(stdout, result)
-	fmt.Fprintln(stdout, "Next: run `claude` from this project.")
-	return 0
-}
-
-func printClaudeStartResult(stdout io.Writer, result setup.ClaudeResult) {
-	fmt.Fprintf(stdout, "Claude instructions: %s\n", result.ClaudeMD)
-	if result.MCPConfigured {
-		fmt.Fprintln(stdout, "Claude Code MCP configured: knowblazer")
-	} else if result.MCPSkipped {
-		fmt.Fprintln(stdout, "Claude Code MCP skipped")
-	} else {
-		fmt.Fprintln(stdout, "Claude Code MCP already configured: knowblazer")
-	}
-}
-
-func printCodexStartResult(stdout io.Writer, result setup.CodexResult) {
-	fmt.Fprintf(stdout, "Codex instructions: %s\n", result.AgentsMD)
-	if result.MCPConfigured {
-		fmt.Fprintln(stdout, "Codex MCP configured: knowblazer")
-	} else if result.MCPSkipped {
-		fmt.Fprintln(stdout, "Codex MCP skipped")
-	} else {
-		fmt.Fprintln(stdout, "Codex MCP already configured: knowblazer")
-	}
-}
-
-func startToolLabel(claude bool, codex bool, antigravity bool) string {
-	var list []string
-	if claude {
-		list = append(list, "Claude Code")
-	}
-	if codex {
-		list = append(list, "Codex")
-	}
-	if antigravity {
-		list = append(list, "Antigravity")
-	}
-	if len(list) == 0 {
-		return "AI tools"
-	}
-	if len(list) == 1 {
-		return list[0]
-	}
-	if len(list) == 2 {
-		return list[0] + " and " + list[1]
-	}
-	return list[0] + ", " + list[1] + " and " + list[2]
-}
-
-func startNextCommand(claude bool, codex bool, antigravity bool) string {
-	var parts []string
-	if claude {
-		parts = append(parts, "`claude`")
-	}
-	if codex {
-		parts = append(parts, "`codex`")
-	}
-	if antigravity {
-		parts = append(parts, "open Antigravity")
-	}
-	if len(parts) == 0 {
-		return "your AI tool"
-	}
-	if len(parts) == 1 {
-		return parts[0]
-	}
-	if len(parts) == 2 {
-		return parts[0] + " or " + parts[1]
-	}
-	return parts[0] + ", " + parts[1] + ", or " + parts[2]
-}
-
-func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
-	repoRoot, err := repoForArgs(args)
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, `knowblazer init <path>`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	workspace := flagValue(args, "--path")
-	if workspace == "" {
-		workspace, _ = os.Getwd()
-	}
-	project := ""
-	if workspace != "" {
-		if mapped, ok, err := projectmap.Resolve(repoRoot, workspace); err == nil && ok {
-			project = mapped
-		}
-	}
-	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
-	if project != "" {
-		fmt.Fprintf(stdout, "Project: %s\n", project)
-		fmt.Fprintf(stdout, "Project memory: %s\n", projectMemoryState(repoRoot, project))
-	} else {
-		fmt.Fprintln(stdout, "Project: not mapped")
-		fmt.Fprintln(stdout, "Project memory: unmapped")
-	}
-	claudeMD := ""
-	if workspace != "" {
-		claudeMD = filepath.Join(workspace, "CLAUDE.md")
-	}
-	if claudeMD != "" {
-		if content, err := os.ReadFile(claudeMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-CLAUDE-SETUP:START") {
-			fmt.Fprintf(stdout, "Claude instructions: %s\n", claudeMD)
-		} else if globalClaude := filepath.Join(os.Getenv("HOME"), ".claude", "CLAUDE.md"); checkFileContains(globalClaude, "KNOWBLAZER-") {
-			fmt.Fprintf(stdout, "Claude instructions: %s (global)\n", globalClaude)
-		} else {
-			fmt.Fprintln(stdout, "Claude instructions: not configured")
-		}
-	}
-	agentsMD := ""
-	if workspace != "" {
-		agentsMD = filepath.Join(workspace, "AGENTS.md")
-	}
-	if agentsMD != "" {
-		if content, err := os.ReadFile(agentsMD); err == nil && (strings.Contains(string(content), "KNOWBLAZER-CODEX-SETUP:START") || strings.Contains(string(content), "KNOWBLAZER-AGENTS-SETUP:START") || strings.Contains(string(content), "KNOWBLAZER-")) {
-			fmt.Fprintf(stdout, "Codex instructions: %s\n", agentsMD)
-		} else if globalAgents := filepath.Join(os.Getenv("HOME"), ".agents", "AGENTS.md"); checkFileContains(globalAgents, "KNOWBLAZER-") {
-			fmt.Fprintf(stdout, "Codex instructions: %s (global)\n", globalAgents)
-		} else {
-			fmt.Fprintln(stdout, "Codex instructions: not configured")
-		}
-	}
-	geminiMD := ""
-	if workspace != "" {
-		geminiMD = filepath.Join(workspace, "GEMINI.md")
-	}
-	if geminiMD != "" {
-		if content, err := os.ReadFile(geminiMD); err == nil && strings.Contains(string(content), "KNOWBLAZER-") {
-			fmt.Fprintf(stdout, "Gemini instructions: %s\n", geminiMD)
-		} else if globalGemini := filepath.Join(os.Getenv("HOME"), ".gemini", "GEMINI.md"); checkFileContains(globalGemini, "KNOWBLAZER-") {
-			fmt.Fprintf(stdout, "Gemini instructions: %s (global)\n", globalGemini)
-		} else {
-			fmt.Fprintln(stdout, "Gemini instructions: not configured")
-		}
-	}
-	freshCount, err := consolidate.CountFresh(repoRoot)
-	if err != nil {
-		fmt.Fprintf(stderr, "status failed: %v\n", err)
-		return 1
-	}
-	synthesizedCount, err := consolidate.CountSynthesized(repoRoot)
-	if err != nil {
-		fmt.Fprintf(stderr, "status failed: %v\n", err)
-		return 1
-	}
-	candidates, err := review.List(repoRoot)
-	if err != nil {
-		fmt.Fprintf(stderr, "status failed: %v\n", err)
-		return 1
-	}
-	fmt.Fprintf(stdout, "Fresh auto memories: %d\n", freshCount)
-	fmt.Fprintf(stdout, "Synthesized memories: %d\n", synthesizedCount)
-	fmt.Fprintf(stdout, "Inbox candidates: %d\n", len(candidates))
-	return 0
-}
-
-func projectMemoryState(repoRoot string, project string) string {
-	if project == "" {
-		return "unmapped"
-	}
-	content, err := os.ReadFile(filepath.Join(repoRoot, "projects", project+".md"))
-	if os.IsNotExist(err) {
-		return "missing"
-	}
-	if err != nil {
-		return "unknown"
-	}
-	text := string(content)
-	if strings.Contains(text, "Add what this project is for.") || strings.Contains(text, "Add durable project context here.") {
-		return "scaffold"
-	}
-	return "active"
-}
+// ---------------------------------------------------------------------------
+// Core Commands
+// ---------------------------------------------------------------------------
 
 func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
-	isGlobal := hasFlag(args, "--global")
-	tool := ""
-	positionals := nonFlagArgs(args)
-	if len(positionals) > 0 {
-		tool = positionals[0]
-	}
-
-	if tool != "" && tool != "claude" && tool != "codex" && tool != "antigravity" && tool != "agy" {
-		fmt.Fprintln(stderr, "usage: knowblazer setup [claude|codex|antigravity] [--global] [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
-		return 2
-	}
-	if tool == "" && !isGlobal {
-		fmt.Fprintln(stderr, "usage: knowblazer setup <claude|codex|antigravity> [--global] [--repo <path>] [--project <name>] [--path <dir>] [--scope <local|user|project>] [--skip-mcp]")
-		return 2
-	}
-
-	repoRoot, err := repoForArgs(args)
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	workspace := flagValue(args, "--path")
-	project := flagValue(args, "--project")
-	scope := flagValue(args, "--scope")
+	isGlobal := hasFlag(args, "--global") || hasFlag(args, "-g")
 	skipMCP := hasFlag(args, "--skip-mcp")
+	tool := flagValue(args, "--tool")
+	positionals := nonFlagArgs(args)
 
-	if isGlobal && tool == "" {
+	// Check if first positional is a supported tool
+	if tool == "" && len(positionals) > 0 {
+		switch positionals[0] {
+		case "claude", "codex", "antigravity", "agy":
+			tool = positionals[0]
+			positionals = positionals[1:]
+		}
+	}
+
+	customPath := ""
+	if len(positionals) > 0 {
+		customPath = positionals[0]
+	}
+
+	repoRoot := flagValue(args, "--repo")
+	if repoRoot == "" && customPath != "" {
+		repoRoot = customPath
+	}
+	if repoRoot == "" {
+		repoRoot = os.Getenv("KNOWBLAZER_REPO")
+	}
+	if repoRoot == "" {
+		repoRoot = filepath.Join(os.Getenv("HOME"), "knowblazer-notes")
+	}
+
+	// Ensure repository is initialized
+	if err := repo.Init(repoRoot); err != nil {
+		fmt.Fprintf(stderr, "setup failed to init repo %s: %v\n", repoRoot, err)
+		return 1
+	}
+
+	workspace := flagValue(args, "--path")
+	if workspace == "" && customPath == "" && !isGlobal {
+		workspace, _ = os.Getwd()
+	}
+
+	project := flagValue(args, "--project")
+	if project == "" && workspace != "" {
+		project = inferProjectName(workspace)
+	}
+
+	// 1. Global mode: inject into user-level instructions
+	if isGlobal {
 		codexRes, err := setup.Codex(setup.CodexOptions{
 			RepoRoot: repoRoot,
 			Global:   true,
@@ -533,201 +168,257 @@ func runSetup(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 0
 	}
 
-	if tool == "codex" {
-		result, err := setup.Codex(setup.CodexOptions{
+	// 2. Specific tool mode
+	if tool != "" {
+		switch tool {
+		case "codex":
+			result, err := setup.Codex(setup.CodexOptions{
+				RepoRoot:      repoRoot,
+				Workspace:     workspace,
+				Project:       project,
+				SkipMCP:       skipMCP,
+				EnsureProject: true,
+			})
+			if err != nil {
+				fmt.Fprintf(stderr, "setup codex failed: %v\n", err)
+				return 1
+			}
+			fmt.Fprintln(stdout, "Knowblazer is ready for Codex in this project.")
+			fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+			fmt.Fprintf(stdout, "Project: %s\n", project)
+			printCodexStartResult(stdout, result)
+			fmt.Fprintln(stdout, "Next: run `codex` from this project.")
+			return 0
+
+		case "claude":
+			result, err := setup.Claude(setup.ClaudeOptions{
+				RepoRoot:      repoRoot,
+				Workspace:     workspace,
+				Project:       project,
+				Scope:         flagValue(args, "--scope"),
+				SkipMCP:       skipMCP,
+				EnsureProject: true,
+			})
+			if err != nil {
+				fmt.Fprintf(stderr, "setup claude failed: %v\n", err)
+				return 1
+			}
+			fmt.Fprintln(stdout, "Knowblazer is ready for Claude Code in this project.")
+			fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+			fmt.Fprintf(stdout, "Project: %s\n", project)
+			printClaudeStartResult(stdout, result)
+			fmt.Fprintln(stdout, "Next: run `claude` from this project.")
+			return 0
+
+		case "antigravity", "agy":
+			result, err := setup.Antigravity(setup.AntigravityOptions{
+				RepoRoot:  repoRoot,
+				Workspace: workspace,
+				Project:   project,
+				SkipMCP:   skipMCP,
+			})
+			if err != nil {
+				fmt.Fprintf(stderr, "setup antigravity failed: %v\n", err)
+				return 1
+			}
+			if result.MCPConfigured {
+				fmt.Fprintln(stdout, "Antigravity MCP configured: knowblazer")
+			}
+			return 0
+
+		default:
+			fmt.Fprintf(stderr, "unknown tool: %s (supported: claude, codex, antigravity)\n", tool)
+			return 2
+		}
+	}
+
+	// 3. Workspace auto-detection mode
+	if workspace == "" {
+		fmt.Fprintf(stdout, "Initialized Knowblazer memory repo: %s\n", repoRoot)
+		fmt.Fprintln(stdout, "Next steps:")
+		fmt.Fprintf(stdout, "  1. Connect your workspace: knowblazer setup\n")
+		fmt.Fprintf(stdout, "  2. Remember lessons: knowblazer remember \"<lesson>\"\n")
+		fmt.Fprintf(stdout, "  3. Recall context: knowblazer recall \"<task>\"\n")
+		return 0
+	}
+
+	claudeInstalled := setupLookPath("claude")
+	codexInstalled := setupLookPath("codex")
+	antigravityInstalled := setupLookPath("antigravity") || setupLookPath("agy") || isAntigravityEnv()
+
+	if skipMCP {
+		claudeInstalled = true
+		codexInstalled = true
+	}
+
+	if !claudeInstalled && !codexInstalled && !antigravityInstalled {
+		if project != "" {
+			_ = setup.EnsureProjectFile(repoRoot, project, workspace)
+			_ = projectmap.Set(repoRoot, workspace, project)
+		}
+		fmt.Fprintf(stdout, "Initialized Knowblazer memory repo at: %s\n", repoRoot)
+		if project != "" {
+			fmt.Fprintf(stdout, "Project ready: %s (%s)\n", project, workspace)
+		}
+		return 0
+	}
+
+	var claudeRes setup.ClaudeResult
+	var codexRes setup.CodexResult
+	var agyRes setup.AntigravityResult
+	var claudeErr, codexErr, agyErr error
+
+	if claudeInstalled {
+		claudeRes, claudeErr = setup.Claude(setup.ClaudeOptions{
 			RepoRoot:      repoRoot,
 			Workspace:     workspace,
 			Project:       project,
-			Global:        isGlobal,
+			Scope:         flagValue(args, "--scope"),
 			SkipMCP:       skipMCP,
-			EnsureProject: !isGlobal,
+			EnsureProject: true,
 		})
-		if err != nil {
-			fmt.Fprintf(stderr, "setup codex failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Codex instructions updated: %s\n", result.AgentsMD)
-		if result.ProjectMapped {
-			fmt.Fprintf(stdout, "Project mapping configured: %s\n", project)
-		}
-		if result.MCPConfigured {
-			fmt.Fprintln(stdout, "Codex MCP configured: knowblazer")
-		} else if result.MCPSkipped {
-			fmt.Fprintln(stdout, "Codex MCP skipped")
-		}
-		fmt.Fprintln(stdout, "Codex integration ready.")
-		return 0
 	}
-	if tool == "antigravity" || tool == "agy" {
-		if isGlobal {
-			codexRes, err := setup.Codex(setup.CodexOptions{
-				RepoRoot: repoRoot,
-				Global:   true,
-				SkipMCP:  skipMCP,
-			})
-			if err != nil {
-				fmt.Fprintf(stderr, "setup global antigravity instructions failed: %v\n", err)
-				return 1
-			}
-			fmt.Fprintf(stdout, "Global Antigravity instructions updated: %s\n", codexRes.AgentsMD)
-		}
-		result, err := setup.Antigravity(setup.AntigravityOptions{
+	if codexInstalled {
+		codexRes, codexErr = setup.Codex(setup.CodexOptions{
+			RepoRoot:      repoRoot,
+			Workspace:     workspace,
+			Project:       project,
+			SkipMCP:       skipMCP,
+			EnsureProject: true,
+		})
+	}
+	if antigravityInstalled {
+		agyRes, agyErr = setup.Antigravity(setup.AntigravityOptions{
 			RepoRoot:  repoRoot,
 			Workspace: workspace,
 			Project:   project,
 			SkipMCP:   skipMCP,
 		})
-		if err != nil {
-			fmt.Fprintf(stderr, "setup antigravity failed: %v\n", err)
-			return 1
-		}
-		if result.MCPConfigured {
-			fmt.Fprintln(stdout, "Antigravity MCP configured: knowblazer")
-		} else if result.MCPSkipped {
-			fmt.Fprintln(stdout, "Antigravity MCP skipped")
+	}
+
+	fmt.Fprintln(stdout, startReadySummary(claudeInstalled && claudeErr == nil, codexInstalled && codexErr == nil, antigravityInstalled && agyErr == nil))
+	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+	if project != "" {
+		fmt.Fprintf(stdout, "Project: %s\n", project)
+	}
+	if claudeInstalled {
+		if claudeErr != nil {
+			fmt.Fprintf(stdout, "Claude Code MCP failed: %v\n", claudeErr)
 		} else {
-			fmt.Fprintln(stdout, "Antigravity MCP already configured: knowblazer")
+			printClaudeStartResult(stdout, claudeRes)
 		}
-		fmt.Fprintln(stdout, "Antigravity integration ready.")
-		return 0
 	}
-	result, err := setup.Claude(setup.ClaudeOptions{
-		RepoRoot:      repoRoot,
-		Workspace:     workspace,
-		Project:       project,
-		Scope:         scope,
-		Global:        isGlobal,
-		SkipMCP:       skipMCP,
-		EnsureProject: !isGlobal,
-	})
-	if err != nil {
-		fmt.Fprintf(stderr, "setup claude failed: %v\n", err)
-		return 1
+	if codexInstalled {
+		if codexErr != nil {
+			fmt.Fprintf(stdout, "Codex MCP failed: %v\n", codexErr)
+		} else {
+			printCodexStartResult(stdout, codexRes)
+		}
 	}
-	fmt.Fprintf(stdout, "Claude instructions updated: %s\n", result.ClaudeMD)
-	if result.ProjectMapped {
-		fmt.Fprintf(stdout, "Project mapping configured: %s\n", project)
+	if antigravityInstalled {
+		if agyErr != nil {
+			fmt.Fprintf(stdout, "Antigravity MCP failed: %v\n", agyErr)
+		} else {
+			if agyRes.MCPConfigured {
+				fmt.Fprintln(stdout, "Antigravity MCP configured: knowblazer")
+			} else if agyRes.MCPSkipped {
+				fmt.Fprintln(stdout, "Antigravity MCP skipped")
+			} else {
+				fmt.Fprintln(stdout, "Antigravity MCP already configured: knowblazer")
+			}
+		}
 	}
-	if result.MCPConfigured {
-		fmt.Fprintln(stdout, "Claude Code MCP configured: knowblazer")
-	} else if result.MCPSkipped {
-		fmt.Fprintln(stdout, "Claude Code MCP skipped")
-	}
-	fmt.Fprintln(stdout, "Claude Code integration ready.")
+	fmt.Fprintf(stdout, "Next: run %s from this project.\n", startNextCommand(claudeInstalled && claudeErr == nil, codexInstalled && codexErr == nil, antigravityInstalled && agyErr == nil))
 	return 0
 }
 
-func runBackup(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
-		return 2
+func startReadySummary(claude bool, codex bool, antigravity bool) string {
+	var parts []string
+	if claude {
+		parts = append(parts, "Claude Code")
 	}
-	passphrase := flagValue(args[1:], "--passphrase")
-	switch args[0] {
-	case "create":
-		repoRoot, err := repoForArgs(args[1:])
-		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-			return 2
-		}
-		output := flagValue(args[1:], "--output")
-		if output == "" {
-			fmt.Fprintln(stderr, "backup create requires --output <file>")
-			return 2
-		}
-		if err := backup.Create(repoRoot, output, passphrase); err != nil {
-			fmt.Fprintf(stderr, "backup create failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Backup written to: %s\n", output)
-		return 0
-	case "restore":
-		input := flagValue(args[1:], "--input")
-		target := flagValue(args[1:], "--target")
-		if input == "" || target == "" {
-			fmt.Fprintln(stderr, "backup restore requires --input <file> --target <path>")
-			return 2
-		}
-		if err := backup.Restore(input, target, passphrase); err != nil {
-			fmt.Fprintf(stderr, "backup restore failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Backup restored to: %s\n", target)
-		return 0
-	default:
-		fmt.Fprintln(stderr, "usage: knowblazer backup <create|restore> [--repo <path>] [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
-		return 2
+	if codex {
+		parts = append(parts, "Codex")
 	}
+	if antigravity {
+		parts = append(parts, "Antigravity")
+	}
+	if len(parts) == 0 {
+		return "Knowblazer is ready in this project."
+	}
+	return fmt.Sprintf("Knowblazer is ready for %s in this project.", strings.Join(parts, " and "))
 }
 
-func runDream(args []string, stdout io.Writer, stderr io.Writer) int {
-	repoRoot, err := repoForArgs(args)
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
+func startNextCommand(claude bool, codex bool, antigravity bool) string {
+	var parts []string
+	if claude {
+		parts = append(parts, "`claude`")
 	}
-	path, err := dream.Run(repoRoot)
-	if err != nil {
-		fmt.Fprintf(stderr, "dream failed: %v\n", err)
-		return 1
+	if codex {
+		parts = append(parts, "`codex`")
 	}
-	fmt.Fprintf(stdout, "Dynamic memory suggestions written to: %s\n", path)
-	return 0
+	if antigravity {
+		parts = append(parts, "`agy`")
+	}
+	if len(parts) == 0 {
+		return "`knowblazer recall`"
+	}
+	return strings.Join(parts, " or ")
 }
 
-func runMCP(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 || args[0] != "serve" {
-		fmt.Fprintln(stderr, "usage: knowblazer mcp serve [--repo <path>]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[1:])
+func isAntigravityEnv() bool {
+	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
+		return false
 	}
-	if err := mcp.Serve(repoRoot, os.Stdin, stdout); err != nil {
-		fmt.Fprintf(stderr, "mcp serve failed: %v\n", err)
-		return 1
-	}
-	return 0
+	_, err = os.Stat(filepath.Join(home, ".gemini", "antigravity"))
+	return err == nil
 }
 
 func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(nonFlagArgs(args)) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer remember <file|text> [--repo <path>] [--daily]")
+	isDaily := hasFlag(args, "--daily") || hasFlag(args, "-d")
+	nonFlags := nonFlagArgs(args)
+	if len(nonFlags) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer remember <text|file> [-d|--daily] [--repo <path>]")
 		return 2
 	}
 	repoRoot, err := repoForArgs(args)
 	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
-	text := strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
-	if hasFlag(args, "--daily") {
+	text := strings.TrimSpace(strings.Join(nonFlags, " "))
+	if isDaily {
 		path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
 		if err != nil {
 			fmt.Fprintf(stderr, "remember daily failed: %v\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "Remembered in daily notes: %s\n", path)
+		fmt.Fprintf(stdout, "Remembered to daily notes: %s\n", path)
 		return 0
 	}
-	if info, err := os.Stat(text); err == nil && !info.IsDir() {
-		result, err := capture.MarkdownAuto(repoRoot, text)
-		if err != nil {
-			fmt.Fprintf(stderr, "remember failed: %v\n", err)
-			return 1
+
+	// Check if single positional argument is an existing markdown file
+	if len(nonFlags) == 1 {
+		candidate := nonFlags[0]
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			result, err := capture.MarkdownAuto(repoRoot, candidate)
+			if err != nil {
+				fmt.Fprintf(stderr, "remember failed: %v\n", err)
+				return 1
+			}
+			if result.ScanLevel == scan.High {
+				fmt.Fprintf(stderr, "sensitive content detected; saved to quarantine: %s\n", result.Path)
+				return 1
+			}
+			fmt.Fprintf(stdout, "Remembered to fresh memory: %s\n", result.Path)
+			if !autoConsolidate(repoRoot, stdout, stderr) {
+				return 1
+			}
+			return 0
 		}
-		if result.ScanLevel == scan.High {
-			fmt.Fprintf(stderr, "sensitive content detected; saved to quarantine: %s\n", result.Path)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Remembered to fresh memory: %s\n", result.Path)
-		if !autoConsolidate(repoRoot, stdout, stderr) {
-			return 1
-		}
-		return 0
 	}
+
 	path, err := rememberText(repoRoot, text)
 	if err != nil {
 		fmt.Fprintf(stderr, "remember failed: %v\n", err)
@@ -738,18 +429,6 @@ func runRemember(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	return 0
-}
-
-func autoConsolidate(repoRoot string, stdout io.Writer, stderr io.Writer) bool {
-	result, err := consolidate.Run(repoRoot)
-	if err != nil {
-		fmt.Fprintf(stderr, "automatic consolidation failed: %v\n", err)
-		return false
-	}
-	if result.Count > 0 {
-		fmt.Fprintf(stdout, "Auto-consolidated %d fresh memories into: %s\n", result.Count, result.Path)
-	}
-	return true
 }
 
 func rememberText(repoRoot string, text string) (string, error) {
@@ -763,7 +442,7 @@ func rememberText(repoRoot string, text string) (string, error) {
 	name := file.Name()
 	defer os.Remove(name)
 	if _, err := fmt.Fprintf(file, "# Memory\n\n%s\n", text); err != nil {
-		file.Close()
+		_ = file.Close()
 		return "", err
 	}
 	if err := file.Close(); err != nil {
@@ -779,355 +458,45 @@ func rememberText(repoRoot string, text string) (string, error) {
 	return result.Path, nil
 }
 
-func runConsolidate(args []string, stdout io.Writer, stderr io.Writer) int {
-	repoRoot, err := repoForArgs(args)
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
+func autoConsolidate(repoRoot string, stdout io.Writer, stderr io.Writer) bool {
 	result, err := consolidate.Run(repoRoot)
 	if err != nil {
-		fmt.Fprintf(stderr, "consolidate failed: %v\n", err)
-		return 1
+		fmt.Fprintf(stderr, "automatic consolidation failed: %v\n", err)
+		return false
 	}
-	if result.Count == 0 {
-		fmt.Fprintln(stdout, "No fresh auto memories to consolidate.")
-		return 0
+	if result.Count > 0 {
+		fmt.Fprintf(stdout, "Auto-consolidated %d fresh memories into: %s\n", result.Count, result.Path)
 	}
-	fmt.Fprintf(stdout, "Consolidated %d fresh memories into: %s\n", result.Count, result.Path)
-	return 0
-}
-
-func runReview(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[1:])
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	switch args[0] {
-	case "list":
-		candidates, err := review.List(repoRoot)
-		if err != nil {
-			fmt.Fprintf(stderr, "review list failed: %v\n", err)
-			return 1
-		}
-		for _, candidate := range candidates {
-			fmt.Fprintf(stdout, "%s  %s\n", levelString(candidate.Level), candidate.Path)
-		}
-		return 0
-	case "promote":
-		values := nonFlagArgs(args[1:])
-		target := flagValue(args[1:], "--to")
-		if len(values) != 1 || target == "" {
-			fmt.Fprintln(stderr, "review promote requires <file> --to <target>")
-			return 2
-		}
-		result, err := review.Promote(repoRoot, values[0], target)
-		if err != nil {
-			fmt.Fprintf(stderr, "review promote failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Promoted to: %s\n", result.Path)
-		return 0
-	case "reject":
-		values := nonFlagArgs(args[1:])
-		if len(values) != 1 {
-			fmt.Fprintln(stderr, "review reject requires <file>")
-			return 2
-		}
-		path, err := review.Reject(repoRoot, values[0])
-		if err != nil {
-			fmt.Fprintf(stderr, "review reject failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Rejected to: %s\n", path)
-		return 0
-	default:
-		fmt.Fprintln(stderr, "usage: knowblazer review <list|promote|reject> [file] [--to <target>] [--repo <path>]")
-		return 2
-	}
-}
-
-func runAdapter(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer adapter <claude|codex|gemini|cursor> [--repo <path>] [--output <path>]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[1:])
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	content, err := adapter.Generate(args[0], repoRoot)
-	if err != nil {
-		fmt.Fprintf(stderr, "adapter failed: %v\n", err)
-		return 1
-	}
-	output := flagValue(args[1:], "--output")
-	if output != "" {
-		if err := os.WriteFile(output, content, 0o644); err != nil {
-			fmt.Fprintf(stderr, "adapter write failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Adapter written to: %s\n", output)
-		return 0
-	}
-	fmt.Fprint(stdout, string(content))
-	return 0
-}
-
-func runImport(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 2 || args[0] != "specstory" {
-		fmt.Fprintln(stderr, "usage: knowblazer import specstory <path> [--repo <path>]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[2:])
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	results, err := specstory.Import(repoRoot, args[1])
-	if err != nil {
-		fmt.Fprintf(stderr, "import failed: %v\n", err)
-		return 1
-	}
-	for _, result := range results {
-		fmt.Fprintf(stdout, "%s  %s -> %s\n", levelString(result.Level), result.Source, result.Path)
-	}
-	return 0
-}
-
-func runIndex(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer index <build|search> [query] [--repo <path>]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[1:])
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	switch args[0] {
-	case "build":
-		idx, err := index.Build(repoRoot)
-		if err != nil {
-			fmt.Fprintf(stderr, "index build failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Indexed %d documents\n", len(idx.Documents))
-		return 0
-	case "search":
-		query := strings.TrimSpace(strings.Join(nonFlagArgs(args[1:]), " "))
-		hits, err := index.Search(repoRoot, query)
-		if err != nil {
-			fmt.Fprintf(stderr, "index search failed: %v\n", err)
-			return 1
-		}
-		for _, hit := range hits {
-			fmt.Fprintf(stdout, "%d  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
-		}
-		return 0
-	default:
-		fmt.Fprintln(stderr, "usage: knowblazer index <build|search> [query] [--repo <path>]")
-		return 2
-	}
-}
-
-func runDaily(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[1:])
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	switch args[0] {
-	case "add":
-		text := strings.TrimSpace(strings.Join(nonFlagArgs(args[1:]), " "))
-		path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
-		if err != nil {
-			fmt.Fprintf(stderr, "daily add failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Daily note updated: %s\n", path)
-		return 0
-	case "show":
-		date, err := daily.ParseDate(flagValue(args[1:], "--date"))
-		if err != nil {
-			fmt.Fprintf(stderr, "invalid date: %v\n", err)
-			return 2
-		}
-		content, _, err := daily.Show(repoRoot, daily.ShowOptions{Date: date})
-		if err != nil {
-			fmt.Fprintf(stderr, "daily show failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprint(stdout, string(content))
-		return 0
-	default:
-		fmt.Fprintln(stderr, "usage: knowblazer daily <add|show> [text] [--repo <path>] [--date YYYY-MM-DD]")
-		return 2
-	}
-}
-
-func runProject(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
-		return 2
-	}
-	repoRoot, err := repoForArgs(args[1:])
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	workspace := flagValue(args[1:], "--path")
-	if workspace == "" {
-		workspace, _ = os.Getwd()
-	}
-	switch args[0] {
-	case "set":
-		values := nonFlagArgs(args[1:])
-		if len(values) != 1 {
-			fmt.Fprintln(stderr, "project set requires a project name")
-			return 2
-		}
-		if err := projectmap.Set(repoRoot, workspace, values[0]); err != nil {
-			fmt.Fprintf(stderr, "project set failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Mapped %s to project %s\n", workspace, values[0])
-		return 0
-	case "show":
-		mappings, err := projectmap.List(repoRoot)
-		if err != nil {
-			fmt.Fprintf(stderr, "project show failed: %v\n", err)
-			return 1
-		}
-		for _, mapping := range mappings {
-			fmt.Fprintf(stdout, "%s  %s\n", mapping.Project, mapping.Path)
-		}
-		return 0
-	case "clear":
-		if err := projectmap.Clear(repoRoot, workspace); err != nil {
-			fmt.Fprintf(stderr, "project clear failed: %v\n", err)
-			return 1
-		}
-		fmt.Fprintf(stdout, "Cleared project mapping for %s\n", workspace)
-		return 0
-	default:
-		fmt.Fprintln(stderr, "usage: knowblazer project <set|show|clear> [name] [--path <dir>] [--repo <path>]")
-		return 2
-	}
-}
-
-func runSync(args []string, stdout io.Writer, stderr io.Writer) int {
-	command := "status"
-	repoArgs := args
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		command = args[0]
-		repoArgs = args[1:]
-	}
-	repoRoot, err := repoForArgs(repoArgs)
-	if err != nil {
-		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-		return 2
-	}
-	var result ksync.Result
-	switch command {
-	case "status":
-		result, err = ksync.Status(repoRoot)
-	case "commit":
-		message := flagValue(repoArgs, "--message")
-		if message == "" {
-			message = flagValue(repoArgs, "-m")
-		}
-		result, err = ksync.Commit(repoRoot, message)
-	case "push":
-		result, err = ksync.Push(repoRoot)
-	case "pull":
-		result, err = ksync.Pull(repoRoot)
-	default:
-		fmt.Fprintln(stderr, "usage: knowblazer sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
-		return 2
-	}
-	if err != nil {
-		fmt.Fprintf(stderr, "sync failed: %v\n", err)
-		if result.Output != "" {
-			fmt.Fprint(stderr, result.Output)
-		}
-		return 1
-	}
-	fmt.Fprint(stdout, result.Output)
-	return 0
-}
-
-func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) != 0 && len(args) != 2 {
-		fmt.Fprintln(stderr, "usage: knowblazer doctor [--repo <path>]")
-		return 2
-	}
-	repoRoot, ok := valueForFlag(args, "--repo")
-	if len(args) == 2 && (!ok || repoRoot == "") {
-		fmt.Fprintln(stderr, "usage: knowblazer doctor [--repo <path>]")
-		return 2
-	}
-	if !ok || repoRoot == "" {
-		var err error
-		repoRoot, err = discoverRepo()
-		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-			return 2
-		}
-	}
-
-	result := doctor.Run(repoRoot)
-	for _, check := range result.Checks {
-		fmt.Fprintf(stdout, "%s  %s  %s\n", doctorStatusString(check.Status), check.Name, check.Message)
-	}
-	if result.HasFailures() {
-		return 1
-	}
-	return 0
+	return true
 }
 
 func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
-	task, ok := valueForFlag(args, "--task")
-	if !ok || task == "" {
+	task := flagValue(args, "--task")
+	if task == "" {
 		task = strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
 	}
 	if task == "" {
-		fmt.Fprintln(stderr, "usage: knowblazer recall <task> [--repo <path>] [--project <name>] [--output <file>]")
+		fmt.Fprintln(stderr, "usage: knowblazer recall <task> [--project <name>] [--output <file>] [--repo <path>]")
 		return 2
 	}
-	repoRoot, ok := valueForFlag(args, "--repo")
-	if !ok || repoRoot == "" {
-		var err error
-		repoRoot, err = discoverRepo()
-		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-			return 2
-		}
-	}
-	if err := repo.MustBeRepo(repoRoot); err != nil {
-		fmt.Fprintf(stderr, "%v\n", err)
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
-	project, _ := valueForFlag(args, "--project")
+
+	project := flagValue(args, "--project")
 	if project == "" {
 		if cwd, err := os.Getwd(); err == nil {
 			if mapped, ok, err := projectmap.Resolve(repoRoot, cwd); err == nil && ok {
 				project = mapped
+			} else {
+				project = inferProjectName(cwd)
 			}
 		}
 	}
-	output, _ := valueForFlag(args, "--output")
 
+	output := flagValue(args, "--output")
 	pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
 	if err != nil {
 		fmt.Fprintf(stderr, "recall failed: %v\n", err)
@@ -1145,156 +514,583 @@ func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 	return 0
 }
 
-func runPromote(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer promote <file> --to <target> --repo <path>")
+func runStatus(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
+	}
+	workspace := flagValue(args, "--path")
+	if workspace == "" {
+		workspace, _ = os.Getwd()
 	}
 
-	source := args[0]
-	target, ok := valueForFlag(args[1:], "--to")
-	if !ok || target == "" {
-		fmt.Fprintln(stderr, "promote requires --to <target>")
-		return 2
-	}
-	repoRoot, ok := valueForFlag(args[1:], "--repo")
-	if !ok || repoRoot == "" {
-		var err error
-		repoRoot, err = discoverRepo()
-		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-			return 2
+	project := ""
+	isAutoInferred := false
+	if workspace != "" {
+		if mapped, ok, err := projectmap.Resolve(repoRoot, workspace); err == nil && ok {
+			project = mapped
+		} else {
+			project = inferProjectName(workspace)
+			isAutoInferred = true
 		}
 	}
-	if err := repo.MustBeRepo(repoRoot); err != nil {
-		fmt.Fprintf(stderr, "%v\n", err)
-		return 2
+
+	fmt.Fprintf(stdout, "Memory repo: %s\n", repoRoot)
+	if project != "" {
+		if isAutoInferred {
+			fmt.Fprintf(stdout, "Project: %s (auto-detected)\n", project)
+		} else {
+			fmt.Fprintf(stdout, "Project: %s\n", project)
+		}
+		fmt.Fprintf(stdout, "Project memory: %s\n", projectMemoryState(repoRoot, project))
+	} else {
+		fmt.Fprintln(stdout, "Project: not mapped")
+		fmt.Fprintln(stdout, "Project memory: unmapped")
 	}
 
-	result, err := promote.File(repoRoot, source, target)
-	if err != nil {
-		fmt.Fprintf(stderr, "promote failed: %v\n", err)
-		return 1
+	// Check Claude instructions
+	claudeMD := filepath.Join(workspace, "CLAUDE.md")
+	if checkFileContains(claudeMD, "KNOWBLAZER-CLAUDE-SETUP:START") {
+		fmt.Fprintf(stdout, "Claude instructions: %s\n", claudeMD)
+	} else if globalClaude := filepath.Join(os.Getenv("HOME"), ".claude", "CLAUDE.md"); checkFileContains(globalClaude, "KNOWBLAZER-") {
+		fmt.Fprintf(stdout, "Claude instructions: %s (global)\n", globalClaude)
+	} else {
+		fmt.Fprintln(stdout, "Claude instructions: not configured")
 	}
-	fmt.Fprintf(stdout, "Promoted to: %s\n", result.Path)
+
+	// Check Codex instructions
+	agentsMD := filepath.Join(workspace, "AGENTS.md")
+	if checkFileContains(agentsMD, "KNOWBLAZER-") {
+		fmt.Fprintf(stdout, "Codex instructions: %s\n", agentsMD)
+	} else if globalAgents := filepath.Join(os.Getenv("HOME"), ".agents", "AGENTS.md"); checkFileContains(globalAgents, "KNOWBLAZER-") {
+		fmt.Fprintf(stdout, "Codex instructions: %s (global)\n", globalAgents)
+	} else {
+		fmt.Fprintln(stdout, "Codex instructions: not configured")
+	}
+
+	// Check Gemini instructions
+	geminiMD := filepath.Join(workspace, "GEMINI.md")
+	if checkFileContains(geminiMD, "KNOWBLAZER-") {
+		fmt.Fprintf(stdout, "Gemini instructions: %s\n", geminiMD)
+	} else if globalGemini := filepath.Join(os.Getenv("HOME"), ".gemini", "GEMINI.md"); checkFileContains(globalGemini, "KNOWBLAZER-") {
+		fmt.Fprintf(stdout, "Gemini instructions: %s (global)\n", globalGemini)
+	} else {
+		fmt.Fprintln(stdout, "Gemini instructions: not configured")
+	}
+
+	freshCount, _ := consolidate.CountFresh(repoRoot)
+	synthesizedCount, _ := consolidate.CountSynthesized(repoRoot)
+	candidates, _ := review.List(repoRoot)
+
+	fmt.Fprintf(stdout, "Fresh auto memories: %d\n", freshCount)
+	fmt.Fprintf(stdout, "Synthesized memories: %d\n", synthesizedCount)
+	fmt.Fprintf(stdout, "Inbox candidates: %d\n", len(candidates))
 	return 0
 }
 
-func runCapture(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer capture <file> --repo <path>")
-		return 2
-	}
-
-	source := args[0]
-	repoRoot, ok := valueForFlag(args[1:], "--repo")
-	if !ok || repoRoot == "" {
-		var err error
-		repoRoot, err = discoverRepo()
-		if err != nil {
-			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer start`, pass --repo, or set KNOWBLAZER_REPO.")
-			return 2
-		}
-	}
-	if err := repo.MustBeRepo(repoRoot); err != nil {
-		fmt.Fprintf(stderr, "%v\n", err)
-		return 2
-	}
-
-	result, err := capture.Markdown(repoRoot, source)
+func runSync(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "capture failed: %v\n", err)
-		return 1
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	action := "status"
+	positionals := nonFlagArgs(args)
+	if len(positionals) > 0 {
+		action = positionals[0]
 	}
 
-	if result.ScanLevel == scan.High {
-		fmt.Fprintln(stdout, "Sensitive content detected.")
-		fmt.Fprintf(stdout, "Moved to quarantine: %s\n", result.Path)
-		fmt.Fprintln(stdout, "Review and sanitize before promoting or committing.")
-		return 1
-	}
+	switch action {
+	case "status":
+		res, err := ksync.Status(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "sync status failed: %v\n", err)
+			return 1
+		}
+		if strings.TrimSpace(res.Output) == "" {
+			fmt.Fprintln(stdout, "Working tree clean.")
+			return 0
+		}
+		fmt.Fprint(stdout, res.Output)
+		return 0
 
-	fmt.Fprintf(stdout, "Captured to inbox: %s\n", result.Path)
-	fmt.Fprintf(stdout, "Scan result: %s\n", result.ScanLevel.String())
-	return 0
+	case "commit":
+		message := flagValue(args, "--message")
+		if message == "" {
+			message = flagValue(args, "-m")
+		}
+		if message == "" {
+			message = "sync: update knowblazer memory"
+		}
+		res, err := ksync.Commit(repoRoot, message)
+		if err != nil {
+			fmt.Fprintf(stderr, "sync commit failed: %v\n", err)
+			return 1
+		}
+		if strings.TrimSpace(res.Output) == "" {
+			fmt.Fprintln(stdout, "Committed memory changes.")
+		} else {
+			fmt.Fprint(stdout, res.Output)
+		}
+		return 0
+
+	case "push":
+		res, err := ksync.Push(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "sync push failed: %v\n%s\n", err, res.Output)
+			return 1
+		}
+		fmt.Fprint(stdout, res.Output)
+		return 0
+
+	case "pull":
+		res, err := ksync.Pull(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "sync pull failed: %v\n%s\n", err, res.Output)
+			return 1
+		}
+		fmt.Fprint(stdout, res.Output)
+		return 0
+
+	default:
+		fmt.Fprintf(stderr, "unknown sync action: %s (supported: status, commit, push, pull)\n", action)
+		return 2
+	}
 }
 
-func runScan(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) != 1 && len(args) != 3 {
-		fmt.Fprintln(stderr, "usage: knowblazer scan <path> [--repo <path>]")
+// ---------------------------------------------------------------------------
+// Knowledge Management & Curation Commands
+// ---------------------------------------------------------------------------
+
+func runMemory(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer memory <list|review|promote|reject|consolidate|search|capture|import|scan> [args]")
 		return 2
 	}
-	if len(args) == 3 {
-		repoRoot, ok := valueForFlag(args[1:], "--repo")
-		if !ok || repoRoot == "" {
-			fmt.Fprintln(stderr, "usage: knowblazer scan <path> [--repo <path>]")
+	if args[0] == "scan" {
+		values := nonFlagArgs(args[1:])
+		if len(values) < 1 {
+			fmt.Fprintln(stderr, "usage: knowblazer memory scan <path>")
 			return 2
 		}
-	}
-
-	result, err := scan.Path(args[0])
-	if err != nil {
-		fmt.Fprintf(stderr, "scan failed: %v\n", err)
-		return 2
-	}
-
-	highCount := 0
-	for _, finding := range result.Findings {
-		if finding.Level == scan.High {
-			highCount++
+		result, err := scan.Path(values[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "scan failed: %v\n", err)
+			return 1
 		}
-		fmt.Fprintf(
-			stdout,
-			"%s  %s:%d  %s  %s\n",
-			levelString(finding.Level),
-			filepath.Clean(finding.File),
-			finding.Line,
-			finding.Rule,
-			finding.Snippet,
-		)
-	}
-	fmt.Fprintf(stdout, "Summary: %s, %d findings, %d high-risk\n", result.Level.String(), len(result.Findings), highCount)
-
-	if result.Level == scan.Clean {
+		highCount := 0
+		for _, finding := range result.Findings {
+			if finding.Level == scan.High {
+				highCount++
+			}
+			fmt.Fprintf(stdout, "%s  %s  %s\n", levelString(finding.Level), finding.Rule, finding.Snippet)
+		}
+		fmt.Fprintf(stdout, "Summary: %s, %d findings, %d high-risk\n", result.Level.String(), len(result.Findings), highCount)
+		if result.Level == scan.High {
+			return 1
+		}
 		return 0
 	}
-	return 1
-}
 
-func runInit(args []string, stdout io.Writer, stderr io.Writer) int {
-	if len(args) > 1 {
-		fmt.Fprintln(stderr, "usage: knowblazer init [path]")
+	repoRoot, err := repoForArgs(args[1:])
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
 		return 2
 	}
 
-	root := filepath.Join(os.Getenv("HOME"), "knowblazer-notes")
-	if len(args) == 1 {
-		root = args[0]
+	switch args[0] {
+	case "list":
+		candidates, err := review.List(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "memory list failed: %v\n", err)
+			return 1
+		}
+		if len(candidates) == 0 {
+			fmt.Fprintln(stdout, "No inbox candidates.")
+			return 0
+		}
+		for _, candidate := range candidates {
+			fmt.Fprintf(stdout, "%s  %s\n", levelString(candidate.Level), candidate.Path)
+		}
+		return 0
+
+	case "review":
+		if len(args) > 1 && args[1] == "suggest" {
+			path, err := dream.Run(repoRoot)
+			if err != nil {
+				fmt.Fprintf(stderr, "memory review suggest failed: %v\n", err)
+				return 1
+			}
+			fmt.Fprintf(stdout, "Memory suggestions generated: %s\n", path)
+			return 0
+		}
+		candidates, err := review.List(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "memory review failed: %v\n", err)
+			return 1
+		}
+		for _, candidate := range candidates {
+			fmt.Fprintf(stdout, "%s  %s\n", levelString(candidate.Level), candidate.Path)
+		}
+		return 0
+
+	case "promote":
+		values := nonFlagArgs(args[1:])
+		target := flagValue(args[1:], "--to")
+		if len(values) != 1 || target == "" {
+			fmt.Fprintln(stderr, "usage: knowblazer memory promote <file> --to <target>")
+			return 2
+		}
+		result, err := review.Promote(repoRoot, values[0], target)
+		if err != nil {
+			fmt.Fprintf(stderr, "memory promote failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Promoted to: %s\n", result.Path)
+		return 0
+
+	case "reject":
+		values := nonFlagArgs(args[1:])
+		if len(values) != 1 {
+			fmt.Fprintln(stderr, "usage: knowblazer memory reject <file>")
+			return 2
+		}
+		path, err := review.Reject(repoRoot, values[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "memory reject failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Rejected to: %s\n", path)
+		return 0
+
+	case "consolidate":
+		result, err := consolidate.Run(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "consolidate failed: %v\n", err)
+			return 1
+		}
+		if result.Count == 0 {
+			fmt.Fprintln(stdout, "No fresh auto memories to consolidate.")
+			return 0
+		}
+		fmt.Fprintf(stdout, "Consolidated %d fresh memories into: %s\n", result.Count, result.Path)
+		return 0
+
+	case "search":
+		query := strings.TrimSpace(strings.Join(nonFlagArgs(args[1:]), " "))
+		if query == "" {
+			fmt.Fprintln(stderr, "usage: knowblazer memory search <query>")
+			return 2
+		}
+		hits, err := index.Search(repoRoot, query)
+		if err != nil {
+			fmt.Fprintf(stderr, "memory search failed: %v\n", err)
+			return 1
+		}
+		if len(hits) == 0 {
+			fmt.Fprintln(stdout, "No matching memories found.")
+			return 0
+		}
+		for _, hit := range hits {
+			fmt.Fprintf(stdout, "%d  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
+		}
+		return 0
+
+	case "index":
+		if len(args) < 2 {
+			fmt.Fprintln(stderr, "usage: knowblazer memory index <build|search> [args]")
+			return 2
+		}
+		if args[1] == "build" {
+			idx, err := index.Build(repoRoot)
+			if err != nil {
+				fmt.Fprintf(stderr, "index build failed: %v\n", err)
+				return 1
+			}
+			fmt.Fprintf(stdout, "Indexed %d files.\n", len(idx.Documents))
+			return 0
+		}
+		if args[1] == "search" {
+			query := strings.TrimSpace(strings.Join(nonFlagArgs(args[2:]), " "))
+			if query == "" {
+				fmt.Fprintln(stderr, "usage: knowblazer memory index search <query>")
+				return 2
+			}
+			hits, err := index.Search(repoRoot, query)
+			if err != nil {
+				fmt.Fprintf(stderr, "index search failed: %v\n", err)
+				return 1
+			}
+			if len(hits) == 0 {
+				fmt.Fprintln(stdout, "No matching memories found.")
+				return 0
+			}
+			for _, hit := range hits {
+				fmt.Fprintf(stdout, "%d  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
+			}
+			return 0
+		}
+		fmt.Fprintf(stderr, "unknown index action: %s\n", args[1])
+		return 2
+
+	case "dream":
+		path, err := dream.Run(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "memory dream failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Dynamic memory suggestions written to: %s\n", path)
+		return 0
+
+	case "capture":
+		values := nonFlagArgs(args[1:])
+		if len(values) < 1 {
+			fmt.Fprintln(stderr, "usage: knowblazer memory capture <file>")
+			return 2
+		}
+		result, err := capture.Markdown(repoRoot, values[0])
+		if err != nil {
+			fmt.Fprintf(stderr, "capture failed: %v\n", err)
+			return 1
+		}
+		if result.ScanLevel == scan.High {
+			fmt.Fprintf(stdout, "Moved to quarantine: %s\n", result.Path)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Captured to inbox: %s\n", result.Path)
+		return 0
+
+	case "import":
+		if len(args) < 3 || args[1] != "specstory" {
+			fmt.Fprintln(stderr, "usage: knowblazer memory import specstory <path>")
+			return 2
+		}
+		results, err := specstory.Import(repoRoot, args[2])
+		if err != nil {
+			fmt.Fprintf(stderr, "import failed: %v\n", err)
+			return 1
+		}
+		for _, r := range results {
+			fmt.Fprintf(stdout, "%s  %s -> %s\n", levelString(r.Level), r.Source, r.Path)
+		}
+		return 0
+
+	default:
+		fmt.Fprintf(stderr, "unknown memory command: %s\n", args[0])
+		return 2
 	}
-	if err := repo.Init(root); err != nil {
-		fmt.Fprintf(stderr, "init failed: %v\n", err)
-		return 1
+}
+
+func runDaily(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	action := "show"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		action = args[0]
 	}
 
-	fmt.Fprintf(stdout, "Initialized Knowblazer memory repo: %s\n", root)
-	fmt.Fprintln(stdout, "Next steps:")
-	fmt.Fprintf(stdout, "  1. Capture memory with: knowblazer remember \"<lesson>\" --repo %s\n", root)
-	fmt.Fprintf(stdout, "  2. Generate context with: knowblazer recall \"<task>\" --repo %s\n", root)
-	fmt.Fprintf(stdout, "  3. Check sync status with: knowblazer sync status --repo %s\n", root)
+	switch action {
+	case "show":
+		dateStr := flagValue(args, "--date")
+		date, err := daily.ParseDate(dateStr)
+		if err != nil {
+			fmt.Fprintf(stderr, "invalid date: %v\n", err)
+			return 2
+		}
+		content, _, err := daily.Show(repoRoot, daily.ShowOptions{Date: date})
+		if err != nil {
+			fmt.Fprintf(stderr, "daily show failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprint(stdout, string(content))
+		return 0
+
+	case "add":
+		text := strings.TrimSpace(strings.Join(nonFlagArgs(args[1:]), " "))
+		if text == "" {
+			fmt.Fprintln(stderr, "usage: knowblazer daily add <text>")
+			return 2
+		}
+		path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
+		if err != nil {
+			fmt.Fprintf(stderr, "daily add failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Daily note updated: %s\n", path)
+		return 0
+
+	default:
+		// If text passed directly: `knowblazer daily "did something"`
+		text := strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
+		if text != "" {
+			path, err := daily.Add(repoRoot, daily.AddOptions{Text: text})
+			if err != nil {
+				fmt.Fprintf(stderr, "daily add failed: %v\n", err)
+				return 1
+			}
+			fmt.Fprintf(stdout, "Daily note updated: %s\n", path)
+			return 0
+		}
+		fmt.Fprintln(stderr, "usage: knowblazer daily [show|add] [text] [--date YYYY-MM-DD]")
+		return 2
+	}
+}
+
+func runProject(args []string, stdout io.Writer, stderr io.Writer) int {
+	action := "list"
+	projectArgs := args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		action = args[0]
+		projectArgs = args[1:]
+	}
+	repoRoot, err := repoForArgs(projectArgs)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+
+	workspace := flagValue(projectArgs, "--path")
+	if workspace == "" {
+		workspace, _ = os.Getwd()
+	}
+
+	switch action {
+	case "list", "show":
+		mappings, err := projectmap.List(repoRoot)
+		if err != nil {
+			fmt.Fprintf(stderr, "project list failed: %v\n", err)
+			return 1
+		}
+		for _, m := range mappings {
+			fmt.Fprintf(stdout, "%s -> %s\n", m.Path, m.Project)
+		}
+		return 0
+
+	case "set":
+		nonFlags := nonFlagArgs(projectArgs)
+		if len(nonFlags) != 1 {
+			fmt.Fprintln(stderr, "usage: knowblazer project set <name> [--path <dir>]")
+			return 2
+		}
+		project := nonFlags[0]
+		if err := setup.EnsureProjectFile(repoRoot, project, workspace); err != nil {
+			fmt.Fprintf(stderr, "project set failed: %v\n", err)
+			return 1
+		}
+		if err := projectmap.Set(repoRoot, workspace, project); err != nil {
+			fmt.Fprintf(stderr, "project set failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Project mapping set: %s -> %s\n", workspace, project)
+		return 0
+
+	case "clear":
+		if err := projectmap.Clear(repoRoot, workspace); err != nil {
+			fmt.Fprintf(stderr, "project clear failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Cleared project mapping for: %s\n", workspace)
+		return 0
+
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer project <list|set|clear> [args]")
+		return 2
+	}
+}
+
+func runDoctor(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, ok := valueForFlag(args, "--repo")
+	if !ok || repoRoot == "" {
+		var err error
+		repoRoot, err = discoverRepo()
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+	}
+	report := doctor.Run(repoRoot)
+	for _, check := range report.Checks {
+		fmt.Fprintf(stdout, "%s  %s  %s\n", doctorStatusString(check.Status), check.Name, check.Message)
+	}
+	if report.HasFailures() {
+		return 1
+	}
 	return 0
 }
 
-func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: knowblazer <command> [args]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Common commands:")
-	fmt.Fprintln(w, "  start [--repo <path>] [--path <dir>] [--tool <claude|codex>] [--skip-mcp]  auto-connect installed AI CLIs")
-	fmt.Fprintln(w, "  remember <file|text> [--repo <path>] [--daily]")
-	fmt.Fprintln(w, "  recall <task> [--repo <path>] [--project <name>] [--output <file>]")
-	fmt.Fprintln(w, "  status [--repo <path>] [--path <dir>]")
-	fmt.Fprintln(w, "  sync [status|commit|push|pull] [--repo <path>] [--message <text>]")
-	fmt.Fprintln(w, "  version                                    print knowblazer version")
-	fmt.Fprintln(w, "  update [--force]                           update knowblazer to latest release")
+func runBackup(args []string, stdout io.Writer, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "usage: knowblazer backup <create|restore> [--output <file>] [--input <file>] [--target <path>] [--passphrase <text>]")
+		return 2
+	}
+	passphrase := flagValue(args[1:], "--passphrase")
+	switch args[0] {
+	case "create":
+		repoRoot, err := repoForArgs(args[1:])
+		if err != nil {
+			fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
+			return 2
+		}
+		output := flagValue(args[1:], "--output")
+		if output == "" {
+			output = flagValue(args[1:], "-o")
+		}
+		if output == "" {
+			fmt.Fprintln(stderr, "backup create requires --output <file>")
+			return 2
+		}
+		if err := backup.Create(repoRoot, output, passphrase); err != nil {
+			fmt.Fprintf(stderr, "backup create failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Backup written to: %s\n", output)
+		return 0
+
+	case "restore":
+		input := flagValue(args[1:], "--input")
+		if input == "" {
+			input = flagValue(args[1:], "-i")
+		}
+		target := flagValue(args[1:], "--target")
+		if target == "" {
+			target = flagValue(args[1:], "-t")
+		}
+		if input == "" || target == "" {
+			fmt.Fprintln(stderr, "backup restore requires --input <file> --target <path>")
+			return 2
+		}
+		if err := backup.Restore(input, target, passphrase); err != nil {
+			fmt.Fprintf(stderr, "backup restore failed: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "Backup restored to: %s\n", target)
+		return 0
+
+	default:
+		fmt.Fprintln(stderr, "usage: knowblazer backup <create|restore> [--output <file>] [--input <file>] [--target <path>]")
+		return 2
+	}
+}
+
+// ---------------------------------------------------------------------------
+// System & Infrastructure Commands
+// ---------------------------------------------------------------------------
+
+func runMCP(args []string, stdout io.Writer, stderr io.Writer) int {
+	repoRoot, err := repoForArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "Knowblazer repo not found. Run `knowblazer setup`, pass --repo, or set KNOWBLAZER_REPO.")
+		return 2
+	}
+	if err := mcp.Serve(repoRoot, os.Stdin, stdout); err != nil {
+		fmt.Fprintf(stderr, "mcp serve failed: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func runVersion(args []string, stdout io.Writer, stderr io.Writer) int {
@@ -1303,7 +1099,7 @@ func runVersion(args []string, stdout io.Writer, stderr io.Writer) int {
 }
 
 func runUpdate(args []string, stdout io.Writer, stderr io.Writer) int {
-	force := hasFlag(args, "--force")
+	force := hasFlag(args, "--force") || hasFlag(args, "-f")
 	cfg := update.Config{
 		Force: force,
 	}
@@ -1312,6 +1108,59 @@ func runUpdate(args []string, stdout io.Writer, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// ---------------------------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------------------------
+
+func printUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage: knowblazer <command> [args]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Core Commands:")
+	fmt.Fprintln(w, "  setup       Initialize memory repo and connect AI tools (--global supported)")
+	fmt.Fprintln(w, "  remember    Save lessons, solutions, markdown files, or daily notes")
+	fmt.Fprintln(w, "  recall      Retrieve tailored context pack for an engineering task")
+	fmt.Fprintln(w, "  status      Check current workspace mapping and memory connection")
+	fmt.Fprintln(w, "  sync        Sync memory repo with remote Git (status|commit|push|pull)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Management:")
+	fmt.Fprintln(w, "  memory      Manage memories (list|review|promote|reject|consolidate|search|capture)")
+	fmt.Fprintln(w, "  daily       View and manage daily work logs (show|add)")
+	fmt.Fprintln(w, "  project     Manage workspace-to-project mappings (list|set|clear)")
+	fmt.Fprintln(w, "  doctor      Diagnose memory repo integrity and secrets")
+	fmt.Fprintln(w, "  backup      Encrypted archive creation and restoration (create|restore)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "System:")
+	fmt.Fprintln(w, "  mcp         Run Model Context Protocol server for AI tools")
+	fmt.Fprintln(w, "  update      Self-update knowblazer to latest release")
+	fmt.Fprintln(w, "  version     Print version and build metadata")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Flags:")
+	fmt.Fprintln(w, "  -h, --help     Show help")
+	fmt.Fprintln(w, "  -v, --version  Show version")
+}
+
+func printClaudeStartResult(stdout io.Writer, result setup.ClaudeResult) {
+	fmt.Fprintf(stdout, "Claude instructions: %s\n", result.ClaudeMD)
+	if result.MCPConfigured {
+		fmt.Fprintln(stdout, "Claude Code MCP configured: knowblazer")
+	} else if result.MCPSkipped {
+		fmt.Fprintln(stdout, "Claude Code MCP skipped")
+	} else {
+		fmt.Fprintln(stdout, "Claude Code MCP already configured: knowblazer")
+	}
+}
+
+func printCodexStartResult(stdout io.Writer, result setup.CodexResult) {
+	fmt.Fprintf(stdout, "Codex instructions: %s\n", result.AgentsMD)
+	if result.MCPConfigured {
+		fmt.Fprintln(stdout, "Codex MCP configured: knowblazer")
+	} else if result.MCPSkipped {
+		fmt.Fprintln(stdout, "Codex MCP skipped")
+	} else {
+		fmt.Fprintln(stdout, "Codex MCP already configured: knowblazer")
+	}
 }
 
 func checkFileContains(path string, substr string) bool {
@@ -1350,6 +1199,9 @@ func valueForFlag(args []string, name string) (string, bool) {
 				return "", false
 			}
 			return args[i+1], true
+		}
+		if strings.HasPrefix(args[i], name+"=") {
+			return strings.TrimPrefix(args[i], name+"="), true
 		}
 	}
 	return "", false
@@ -1394,25 +1246,11 @@ func hasFlag(args []string, name string) bool {
 		if arg == name {
 			return true
 		}
+		if strings.HasPrefix(arg, name+"=") {
+			return true
+		}
 	}
 	return false
-}
-
-func repoForStart(args []string) (string, error) {
-	repoRoot := flagValue(args, "--repo")
-	if repoRoot == "" {
-		repoRoot = os.Getenv("KNOWBLAZER_REPO")
-	}
-	if repoRoot == "" {
-		repoRoot = filepath.Join(os.Getenv("HOME"), "knowblazer-notes")
-	}
-	if err := repo.Init(repoRoot); err != nil {
-		return "", err
-	}
-	if err := repo.MustBeRepo(repoRoot); err != nil {
-		return "", err
-	}
-	return repoRoot, nil
 }
 
 func inferProjectName(workspace string) string {
@@ -1442,7 +1280,7 @@ func gitRoot(workspace string) (string, bool) {
 
 func flagTakesValue(name string) bool {
 	switch name {
-	case "--daily", "--skip-mcp", "--force", "--global":
+	case "--daily", "-d", "--skip-mcp", "--force", "-f", "--global", "-g", "--help", "-h", "--version", "-v":
 		return false
 	default:
 		return true
@@ -1454,4 +1292,22 @@ func discoverRepo() (string, error) {
 		EnvRepo:     os.Getenv("KNOWBLAZER_REPO"),
 		DefaultRepo: filepath.Join(os.Getenv("HOME"), "knowblazer-notes"),
 	})
+}
+
+func projectMemoryState(repoRoot string, project string) string {
+	if project == "" {
+		return "unmapped"
+	}
+	content, err := os.ReadFile(filepath.Join(repoRoot, "projects", project+".md"))
+	if os.IsNotExist(err) {
+		return "missing"
+	}
+	if err != nil {
+		return "unknown"
+	}
+	text := string(content)
+	if strings.Contains(text, "Add what this project is for.") || strings.Contains(text, "Add durable project context here.") {
+		return "scaffold"
+	}
+	return "active"
 }
