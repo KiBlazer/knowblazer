@@ -1,6 +1,7 @@
 package textutil
 
 import (
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -13,11 +14,22 @@ func IsCJK(r rune) bool {
 		unicode.Is(unicode.Hangul, r)
 }
 
-// Tokenize extracts lowercase alphanumeric terms and CJK unigram/bigram tokens.
+// Tokenize extracts unique lowercase alphanumeric terms and CJK unigram/bigram tokens.
 func Tokenize(text string) []string {
+	counts, _ := TermFrequencies(text)
+	out := make([]string, 0, len(counts))
+	for term := range counts {
+		out = append(out, term)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TermFrequencies extracts term occurrences with their frequencies and total token count (for BM25).
+func TermFrequencies(text string) (map[string]int, int) {
 	text = strings.ToLower(text)
-	var out []string
-	seen := map[string]bool{}
+	counts := make(map[string]int)
+	totalTokens := 0
 
 	var latinBuf []rune
 	var cjkBuf []rune
@@ -25,10 +37,8 @@ func Tokenize(text string) []string {
 	flushLatin := func() {
 		if len(latinBuf) >= 2 {
 			word := string(latinBuf)
-			if !seen[word] {
-				seen[word] = true
-				out = append(out, word)
-			}
+			counts[word]++
+			totalTokens++
 		}
 		latinBuf = latinBuf[:0]
 	}
@@ -38,26 +48,18 @@ func Tokenize(text string) []string {
 		if n == 0 {
 			return
 		}
+		totalTokens += n
 		if n >= 2 {
 			full := string(cjkBuf)
-			if !seen[full] {
-				seen[full] = true
-				out = append(out, full)
-			}
+			counts[full]++
 			for i := 0; i < n-1; i++ {
 				bigram := string(cjkBuf[i : i+2])
-				if !seen[bigram] {
-					seen[bigram] = true
-					out = append(out, bigram)
-				}
+				counts[bigram]++
 			}
 		}
 		for i := 0; i < n; i++ {
 			unigram := string(cjkBuf[i])
-			if !seen[unigram] {
-				seen[unigram] = true
-				out = append(out, unigram)
-			}
+			counts[unigram]++
 		}
 		cjkBuf = cjkBuf[:0]
 	}
@@ -77,5 +79,9 @@ func Tokenize(text string) []string {
 	flushLatin()
 	flushCJK()
 
-	return out
+	if totalTokens == 0 {
+		totalTokens = 1
+	}
+	return counts, totalTokens
 }
+

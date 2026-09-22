@@ -161,7 +161,8 @@ func directToolResult(repoRoot string, id any, name string, params map[string]an
 				}
 			}
 		}
-		pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
+		explain := boolParam(params, "explain")
+		pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project, Explain: explain})
 		if err != nil {
 			return fail(id, err.Error())
 		}
@@ -194,7 +195,8 @@ func directToolResult(repoRoot string, id any, name string, params map[string]an
 	case "knowblazer_recall":
 		task := stringParam(params, "task")
 		project := stringParam(params, "project")
-		pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
+		explain := boolParam(params, "explain")
+		pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project, Explain: explain})
 		if err != nil {
 			return fail(id, err.Error())
 		}

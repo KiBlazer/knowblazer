@@ -34,3 +34,17 @@ func TestTokenize(t *testing.T) {
 		}
 	}
 }
+
+func TestTermFrequencies(t *testing.T) {
+	counts, total := TermFrequencies("deploy deploy smoke")
+	if counts["deploy"] != 2 {
+		t.Errorf("counts['deploy'] = %d, want 2", counts["deploy"])
+	}
+	if counts["smoke"] != 1 {
+		t.Errorf("counts['smoke'] = %d, want 1", counts["smoke"])
+	}
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
+	}
+}
+

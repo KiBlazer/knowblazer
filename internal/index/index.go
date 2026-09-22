@@ -8,13 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/knowblazer/knowblazer/internal/bm25"
 	"github.com/knowblazer/knowblazer/internal/textutil"
 )
 
 type Document struct {
-	Path    string   `json:"path"`
-	Terms   []string `json:"terms"`
-	Snippet string   `json:"snippet"`
+	Path    string         `json:"path"`
+	Terms   []string       `json:"terms,omitempty"`
+	Freqs   map[string]int `json:"freqs,omitempty"`
+	Length  int            `json:"length,omitempty"`
+	Snippet string         `json:"snippet"`
 }
 
 type Index struct {
@@ -22,9 +25,9 @@ type Index struct {
 }
 
 type Hit struct {
-	Path    string
-	Score   int
-	Snippet string
+	Path    string  `json:"path"`
+	Score   float64 `json:"score"`
+	Snippet string  `json:"snippet"`
 }
 
 func Build(repoRoot string) (Index, error) {
@@ -43,7 +46,15 @@ func Build(repoRoot string) (Index, error) {
 			if err != nil {
 				return nil
 			}
-			idx.Documents = append(idx.Documents, Document{Path: filepath.ToSlash(rel), Terms: uniqueTerms(string(content)), Snippet: snippet(string(content))})
+			text := string(content)
+			freqs, length := textutil.TermFrequencies(rel + "\n" + text)
+			idx.Documents = append(idx.Documents, Document{
+				Path:    filepath.ToSlash(rel),
+				Terms:   uniqueTerms(text),
+				Freqs:   freqs,
+				Length:  length,
+				Snippet: snippet(text),
+			})
 			return nil
 		})
 	}
@@ -90,18 +101,24 @@ func Search(repoRoot string, query string) ([]Hit, error) {
 	if len(terms) == 0 {
 		return nil, fmt.Errorf("search query is required")
 	}
-	var hits []Hit
+
+	var bmDocs []bm25.Document
 	for _, doc := range idx.Documents {
-		score := 0
-		termSet := map[string]bool{}
-		for _, term := range doc.Terms {
-			termSet[term] = true
+		freqs := doc.Freqs
+		length := doc.Length
+		if freqs == nil || length == 0 {
+			freqs, length = textutil.TermFrequencies(doc.Path + "\n" + strings.Join(doc.Terms, " "))
 		}
-		for _, term := range terms {
-			if termSet[term] || strings.Contains(strings.ToLower(doc.Path), term) {
-				score++
-			}
-		}
+		bmDocs = append(bmDocs, bm25.Document{
+			Length: length,
+			Freqs:  freqs,
+		})
+	}
+
+	corpus := bm25.NewCorpus(bmDocs)
+	var hits []Hit
+	for i, doc := range idx.Documents {
+		score := corpus.Score(bmDocs[i], terms)
 		if score > 0 {
 			hits = append(hits, Hit{Path: doc.Path, Score: score, Snippet: doc.Snippet})
 		}

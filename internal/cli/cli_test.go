@@ -559,6 +559,29 @@ func TestRunRememberTextAndPositionalRecall(t *testing.T) {
 	}
 }
 
+func TestRunRecallWithExplain(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "memory")
+	var initOut bytes.Buffer
+	var initErr bytes.Buffer
+	if code := Run([]string{"setup", root, "--skip-mcp"}, &initOut, &initErr); code != 0 {
+		t.Fatalf("setup code = %d, stderr = %s", code, initErr.String())
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := Run([]string{"remember", "Deploys need smoke tests", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("remember code = %d, stderr = %s", code, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := Run([]string{"recall", "deploy smoke", "--explain", "--repo", root}, &stdout, &stderr); code != 0 {
+		t.Fatalf("recall --explain code = %d, stderr = %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "## Recall Diagnostics") {
+		t.Fatalf("recall --explain missing diagnostics:\n%s", stdout.String())
+	}
+}
+
+
 func TestRunExplicitConsolidateIsNoopAfterAutomaticConsolidation(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "memory")
 	var initOut bytes.Buffer

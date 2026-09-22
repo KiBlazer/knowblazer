@@ -476,7 +476,7 @@ func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 		task = strings.TrimSpace(strings.Join(nonFlagArgs(args), " "))
 	}
 	if task == "" {
-		fmt.Fprintln(stderr, "usage: knowblazer recall <task> [--project <name>] [--output <file>] [--repo <path>]")
+		fmt.Fprintln(stderr, "usage: knowblazer recall <task> [--project <name>] [--output <file>] [--explain] [--repo <path>]")
 		return 2
 	}
 	repoRoot, err := repoForArgs(args)
@@ -497,7 +497,12 @@ func runRecall(args []string, stdout io.Writer, stderr io.Writer) int {
 	}
 
 	output := flagValue(args, "--output")
-	pack, err := recall.Generate(repoRoot, recall.Options{Task: task, Project: project})
+	explain := hasFlag(args, "--explain")
+	pack, err := recall.Generate(repoRoot, recall.Options{
+		Task:    task,
+		Project: project,
+		Explain: explain,
+	})
 	if err != nil {
 		fmt.Fprintf(stderr, "recall failed: %v\n", err)
 		return 1
@@ -793,7 +798,7 @@ func runMemory(args []string, stdout io.Writer, stderr io.Writer) int {
 			return 0
 		}
 		for _, hit := range hits {
-			fmt.Fprintf(stdout, "%d  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
+			fmt.Fprintf(stdout, "%.2f  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
 		}
 		return 0
 
@@ -827,7 +832,7 @@ func runMemory(args []string, stdout io.Writer, stderr io.Writer) int {
 				return 0
 			}
 			for _, hit := range hits {
-				fmt.Fprintf(stdout, "%d  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
+				fmt.Fprintf(stdout, "%.2f  %s  %s\n", hit.Score, hit.Path, strings.ReplaceAll(hit.Snippet, "\n", " "))
 			}
 			return 0
 		}

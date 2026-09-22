@@ -10,14 +10,35 @@ import (
 	"strings"
 	"time"
 
+	"github.com/knowblazer/knowblazer/internal/bm25"
 	"github.com/knowblazer/knowblazer/internal/textutil"
 )
 
-const maxPackBytes = 20 * 1024
+const (
+	maxPackBytes    = 20 * 1024
+	DefaultMinScore = 0.15
+)
 
 type Options struct {
-	Task    string
-	Project string
+	Task     string
+	Project  string
+	MinScore float64
+	Explain  bool
+}
+
+type ExplainCandidate struct {
+	Path       string
+	Breadcrumb string
+	Score      float64
+	Priority   int
+	Admitted   bool
+}
+
+type Diagnostics struct {
+	Terms       []string
+	MinScore    float64
+	TotalScored int
+	Candidates  []ExplainCandidate
 }
 
 func Generate(repoRoot string, opts Options) ([]byte, error) {
@@ -33,6 +54,10 @@ func Generate(repoRoot string, opts Options) ([]byte, error) {
 	fmt.Fprintf(&out, "Generated at: %s\n", time.Now().Format(time.RFC3339))
 	fmt.Fprintln(&out)
 
+	fmt.Fprintln(&out, "## Tier 1: Mandatory Constraints & Governance")
+	fmt.Fprintln(&out, "> Directives in this tier represent mandatory project constraints and developer principles that must be strictly preserved.")
+	fmt.Fprintln(&out)
+
 	writeSection(&out, "Developer Preferences", readExisting(
 		filepath.Join(repoRoot, "profile", "preferences.md"),
 		filepath.Join(repoRoot, "profile", "decision-principles.md"),
@@ -42,7 +67,15 @@ func Generate(repoRoot string, opts Options) ([]byte, error) {
 		writeSection(&out, "Project Context", readExisting(filepath.Join(repoRoot, "projects", opts.Project+".md")))
 	}
 
-	experience := relevantExperience(repoRoot, task, 5)
+	fmt.Fprintln(&out, "## Tier 2: Empirical Reference & Past Cases")
+	fmt.Fprintln(&out, "> Heuristics in this tier provide historical troubleshooting patterns and empirical reference lessons to consult, not rigid commands.")
+	fmt.Fprintln(&out)
+
+	minScore := opts.MinScore
+	if minScore <= 0 {
+		minScore = DefaultMinScore
+	}
+	experience, diag := relevantExperience(repoRoot, task, 5, minScore)
 	writeSection(&out, "Relevant Experience", experience)
 
 	daily := recentDaily(repoRoot)
@@ -51,13 +84,37 @@ func Generate(repoRoot string, opts Options) ([]byte, error) {
 	fmt.Fprintln(&out, "## Cautions")
 	fmt.Fprintln(&out)
 	fmt.Fprintln(&out, "- This pack excludes inbox and quarantine by default.")
+	fmt.Fprintln(&out, "- Tier 1 contains mandatory engineering constraints that must be preserved.")
+	fmt.Fprintln(&out, "- Tier 2 provides historical lessons and reference heuristics to consult, not rigid commands.")
 	fmt.Fprintln(&out, "- It prioritizes synthesized memory and uses fresh automatic memory as lower-confidence context.")
 	fmt.Fprintln(&out, "- Verify commands and secrets before running anything.")
+
+	if opts.Explain && diag != nil {
+		fmt.Fprintln(&out)
+		fmt.Fprintln(&out, "## Recall Diagnostics")
+		fmt.Fprintln(&out)
+		fmt.Fprintf(&out, "- Extracted Terms: %v\n", diag.Terms)
+		fmt.Fprintf(&out, "- Minimum Score Threshold: %.2f\n", diag.MinScore)
+		fmt.Fprintf(&out, "- Total Sections Evaluated: %d\n", diag.TotalScored)
+		fmt.Fprintln(&out, "- Candidate Scoring:")
+		if len(diag.Candidates) == 0 {
+			fmt.Fprintln(&out, "  _No candidates found._")
+		} else {
+			for _, c := range diag.Candidates {
+				status := "rejected"
+				if c.Admitted {
+					status = "admitted"
+				}
+				fmt.Fprintf(&out, "  - `%s` (BM25: %.2f, priority: %d, %s)\n", c.Breadcrumb, c.Score, c.Priority, status)
+			}
+		}
+	}
+
 	return limitBytes(out.Bytes(), maxPackBytes), nil
 }
 
 func writeSection(out *bytes.Buffer, title string, parts []string) {
-	fmt.Fprintf(out, "## %s\n\n", title)
+	fmt.Fprintf(out, "### %s\n\n", title)
 	if len(parts) == 0 {
 		fmt.Fprintln(out, "_No matching memory found._")
 		fmt.Fprintln(out)
@@ -84,15 +141,132 @@ func readExisting(paths ...string) []string {
 	return parts
 }
 
-func relevantExperience(repoRoot string, task string, maxFiles int) []string {
-	type candidate struct {
-		path     string
-		score    int
-		priority int
+type sectionItem struct {
+	path       string
+	breadcrumb string
+	priority   int
+	content    string
+	bmDoc      bm25.Document
+}
+
+func parseSections(relPath string, content string, priority int) []sectionItem {
+	lines := strings.Split(content, "\n")
+	docTitle := ""
+
+	inFrontmatter := false
+	var bodyLines []string
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if i == 0 && trimmed == "---" {
+			inFrontmatter = true
+			continue
+		}
+		if inFrontmatter {
+			if trimmed == "---" {
+				inFrontmatter = false
+				continue
+			}
+			if strings.HasPrefix(trimmed, "title:") {
+				docTitle = strings.Trim(strings.TrimPrefix(trimmed, "title:"), ` "'`)
+			}
+			continue
+		}
+		if docTitle == "" && strings.HasPrefix(trimmed, "# ") {
+			docTitle = strings.TrimSpace(strings.TrimPrefix(trimmed, "# "))
+		}
+		bodyLines = append(bodyLines, line)
 	}
 
+	if docTitle == "" {
+		docTitle = strings.TrimSuffix(filepath.Base(relPath), filepath.Ext(relPath))
+	}
+
+	type rawSection struct {
+		heading string
+		lines   []string
+	}
+	var rawSections []rawSection
+	var currentHeading string
+	var currentLines []string
+
+	for _, line := range bodyLines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") || strings.HasPrefix(trimmed, "### ") {
+			if currentHeading != "" && len(currentLines) > 0 {
+				rawSections = append(rawSections, rawSection{heading: currentHeading, lines: currentLines})
+			}
+			if strings.HasPrefix(trimmed, "## ") {
+				currentHeading = strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
+			} else {
+				currentHeading = strings.TrimSpace(strings.TrimPrefix(trimmed, "### "))
+			}
+			currentLines = nil
+			continue
+		}
+		if strings.HasPrefix(trimmed, "# ") && strings.TrimSpace(strings.TrimPrefix(trimmed, "# ")) == docTitle {
+			continue
+		}
+		currentLines = append(currentLines, line)
+	}
+	if currentHeading != "" && len(currentLines) > 0 {
+		rawSections = append(rawSections, rawSection{heading: currentHeading, lines: currentLines})
+	}
+
+	// If no subheadings found, treat entire document as a single section
+	if len(rawSections) == 0 {
+		freqs, length := textutil.TermFrequencies(relPath + "\n" + content)
+		return []sectionItem{
+			{
+				path:       relPath,
+				breadcrumb: docTitle,
+				priority:   priority,
+				content:    content,
+				bmDoc: bm25.Document{
+					Length: length,
+					Freqs:  freqs,
+				},
+			},
+		}
+	}
+
+	var out []sectionItem
+	for _, sec := range rawSections {
+		body := strings.TrimSpace(strings.Join(sec.lines, "\n"))
+		if body == "" {
+			continue
+		}
+		breadcrumb := docTitle + " > " + sec.heading
+		rendered := fmt.Sprintf("#### %s\n\n%s", breadcrumb, body)
+		freqs, length := textutil.TermFrequencies(relPath + "\n" + breadcrumb + "\n" + body)
+		out = append(out, sectionItem{
+			path:       relPath,
+			breadcrumb: breadcrumb,
+			priority:   priority,
+			content:    rendered,
+			bmDoc: bm25.Document{
+				Length: length,
+				Freqs:  freqs,
+			},
+		})
+	}
+	return out
+}
+
+func relevantExperience(repoRoot string, task string, maxFiles int, minScore float64) ([]string, *Diagnostics) {
 	keywords := keywords(task)
-	var candidates []candidate
+	if len(keywords) == 0 {
+		return nil, nil
+	}
+
+	diag := &Diagnostics{
+		Terms:    keywords,
+		MinScore: minScore,
+	}
+
+	var allSections []sectionItem
+	var bmDocs []bm25.Document
+
 	root := filepath.Join(repoRoot, "experience")
 	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() || filepath.Ext(path) != ".md" || strings.EqualFold(entry.Name(), "README.md") {
@@ -107,12 +281,51 @@ func relevantExperience(repoRoot string, task string, maxFiles int) []string {
 		if priority == 2 && !isFreshAutoMemory(text) {
 			return nil
 		}
-		score := scoreText(path+"\n"+text, keywords)
-		if score > 0 {
-			candidates = append(candidates, candidate{path: path, score: score, priority: priority})
+
+		rel, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			rel = path
+		}
+		secs := parseSections(filepath.ToSlash(rel), text, priority)
+		for _, sec := range secs {
+			allSections = append(allSections, sec)
+			bmDocs = append(bmDocs, sec.bmDoc)
 		}
 		return nil
 	})
+
+	if len(bmDocs) == 0 {
+		return nil, diag
+	}
+
+	diag.TotalScored = len(allSections)
+	corpus := bm25.NewCorpus(bmDocs)
+	type candidate struct {
+		content  string
+		path     string
+		score    float64
+		priority int
+	}
+	var candidates []candidate
+	for _, sec := range allSections {
+		score := corpus.Score(sec.bmDoc, keywords)
+		admitted := score >= minScore
+		diag.Candidates = append(diag.Candidates, ExplainCandidate{
+			Path:       sec.path,
+			Breadcrumb: sec.breadcrumb,
+			Score:      score,
+			Priority:   sec.priority,
+			Admitted:   admitted,
+		})
+		if admitted {
+			candidates = append(candidates, candidate{
+				content:  sec.content,
+				path:     sec.path,
+				score:    score,
+				priority: sec.priority,
+			})
+		}
+	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].priority != candidates[j].priority {
 			return candidates[i].priority < candidates[j].priority
@@ -128,12 +341,37 @@ func relevantExperience(repoRoot string, task string, maxFiles int) []string {
 		if i >= maxFiles {
 			break
 		}
-		content, err := os.ReadFile(candidate.path)
-		if err == nil {
-			parts = append(parts, limitString(string(content), 8*1024))
+		parts = append(parts, limitString(candidate.content, 8*1024))
+	}
+	return LongContextReorder(parts), diag
+}
+
+// LongContextReorder reorders items according to the U-shaped attention distribution:
+// the most relevant items are placed at the beginning and end, while less relevant
+// items are placed in the middle.
+func LongContextReorder(items []string) []string {
+	if len(items) <= 2 {
+		out := make([]string, len(items))
+		copy(out, items)
+		return out
+	}
+
+	var left []string
+	var right []string
+
+	for i, item := range items {
+		if i%2 == 0 {
+			left = append(left, item)
+		} else {
+			right = append(right, item)
 		}
 	}
-	return parts
+
+	for i, j := 0, len(right)-1; i < j; i, j = i+1, j-1 {
+		right[i], right[j] = right[j], right[i]
+	}
+
+	return append(left, right...)
 }
 
 func experiencePriority(repoRoot string, path string) int {
@@ -166,15 +404,6 @@ func recentDaily(repoRoot string) []string {
 
 func keywords(task string) []string {
 	return textutil.Tokenize(task)
-}
-
-func scoreText(text string, keywords []string) int {
-	text = strings.ToLower(text)
-	score := 0
-	for _, keyword := range keywords {
-		score += strings.Count(text, keyword)
-	}
-	return score
 }
 
 func limitString(value string, max int) string {
