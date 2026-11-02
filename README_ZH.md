@@ -152,6 +152,8 @@ Knowblazer 经过重构，采用简洁优雅的三层指令分类：
 * `knowblazer memory scan <路径>`：安全扫描指定文件或目录，检查是否有泄漏的 Token 或密钥。
 * `knowblazer daily [show|add <文本>]`：查看或记录当天的工作日志。
 * `knowblazer project [list|set <名称>|clear]`：管理工作区路径与项目名称的绑定映射。
+
+项目路径映射保存在本机 `$XDG_CONFIG_HOME/knowblazer/projects/`（默认 `~/.config/knowblazer/projects/`），并按记忆仓库路径隔离。旧版 `.knowblazer/projects.json` 仍可作为回退读取；首次执行 `project set` 或 `project clear` 时会复制到本机配置，不修改共享文件。请分别在每台机器配置路径，待所有机器升级迁移后，再从 Git 移除旧文件并忽略 `.knowblazer/projects.json`。本机映射不随记忆仓库同步，应另行备份。
 * `knowblazer doctor`：全面体检记忆库结构完整性与敏感信息隔离状态。
 * `knowblazer backup <create|restore> [--passphrase <口令>]`：创建或恢复加密备份包。
 
@@ -171,7 +173,7 @@ Knowblazer 经过重构，采用简洁优雅的三层指令分类：
 ```text
 knowblazer-notes/
 ├── .knowblazer/
-│   └── config.json       # 索引与项目映射配置
+│   └── config.json       # 记忆仓库配置
 ├── AI-SETUP.md
 ├── inbox/                # 待审核/导入的候选记忆
 ├── daily/                # 短期工作日志、今日笔记

@@ -1,6 +1,8 @@
 package projectmap
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -84,7 +86,7 @@ func Resolve(repoRoot string, workspacePath string) (string, bool, error) {
 		if err != nil {
 			continue
 		}
-		if rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel)) {
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)) {
 			if len(mapping.Path) > bestLen {
 				bestLen = len(mapping.Path)
 				best = mapping.Project
@@ -98,10 +100,16 @@ func Resolve(repoRoot string, workspacePath string) (string, bool, error) {
 }
 
 func load(repoRoot string) (Store, error) {
-	path := storePath(repoRoot)
+	path, err := storePath(repoRoot)
+	if err != nil {
+		return Store{}, err
+	}
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return Store{}, nil
+		content, err = os.ReadFile(filepath.Join(repoRoot, ".knowblazer", "projects.json"))
+		if errors.Is(err, os.ErrNotExist) {
+			return Store{}, nil
+		}
 	}
 	if err != nil {
 		return Store{}, err
@@ -114,8 +122,11 @@ func load(repoRoot string) (Store, error) {
 }
 
 func save(repoRoot string, store Store) error {
-	path := storePath(repoRoot)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	path, err := storePath(repoRoot)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	content, err := json.MarshalIndent(store, "", "  ")
@@ -123,9 +134,22 @@ func save(repoRoot string, store Store) error {
 		return err
 	}
 	content = append(content, '\n')
-	return os.WriteFile(path, content, 0o644)
+	return os.WriteFile(path, content, 0o600)
 }
 
-func storePath(repoRoot string) string {
-	return filepath.Join(repoRoot, ".knowblazer", "projects.json")
+// storePath namespaces machine-local mappings by the canonical memory repository path.
+func storePath(repoRoot string) (string, error) {
+	root, err := filepath.Abs(repoRoot)
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256([]byte(root))
+	return filepath.Join(configDir, "knowblazer", "projects", hex.EncodeToString(sum[:])+".json"), nil
 }

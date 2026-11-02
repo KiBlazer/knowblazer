@@ -142,6 +142,8 @@ Knowblazer features a clean, unified command taxonomy:
 * `knowblazer memory scan <path>`: Scan file or directory for exposed secrets and tokens.
 * `knowblazer daily [show|add <text>]`: View or update today's engineering daily log.
 * `knowblazer project [list|set <name>|clear]`: Manage workspace-to-project mappings.
+
+Project mappings are machine-local, stored under `$XDG_CONFIG_HOME/knowblazer/projects/` (default `~/.config/knowblazer/projects/`) and separated by memory repository path. Existing `.knowblazer/projects.json` mappings remain readable as a legacy fallback; the first `project set` or `project clear` copies them to the local store without changing the shared file. Configure paths on each machine. After every machine has migrated and upgraded, remove the legacy file from Git and ignore `.knowblazer/projects.json`. Back up the local mapping separately; it is not included in memory repo sync.
 * `knowblazer doctor`: Verify repository integrity, config, and check for quarantine leaks.
 * `knowblazer backup <create|restore> [--passphrase <text>]`: Encrypted archive creation and restoration.
 
